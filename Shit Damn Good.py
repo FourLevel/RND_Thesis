@@ -267,3 +267,8 @@ plt.xlabel('Strike Price (K)')
 plt.ylabel('Risk Neutral Density')
 plt.xlim(10000, 30000)
 plt.show()
+
+
+# 左邊直接拉到 0，右邊拉到 30,000，要固定。
+# Next, 不要有起始值，用論文裡的 Three Conditions，去試第一個條件。
+# 研究一下一個點的做法，(1) cdf, (2) pdf, (3) 斜率相等。
