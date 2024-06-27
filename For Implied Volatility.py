@@ -5,6 +5,7 @@ from scipy.interpolate import LSQUnivariateSpline
 from scipy.stats import norm
 import matplotlib.pyplot as plt
 from scipy.optimize import bisect
+from scipy.stats import genextreme
 
 
 class d1:
@@ -229,8 +230,28 @@ plt.show()
 
 
 
+
 # 计算期权价格
+call_prices_fromIV = [call.spot(F, K, T, r, vol) for vol in mix_cp['mixIV']]
+mix_cp['Call_Price_fromIV'] = call_prices_fromIV
+
+
+plt.figure(figsize=(10, 6), dpi=100)
+plt.scatter(mix_cp['K'], mix_cp['Call_Price_fromIV'], color='blue')
+plt.xlabel('Strike Price (K)')
+plt.ylabel('Call Price from IV')
+plt.title('Call Price from IV vs Strike Price')
+plt.grid(True)
+plt.show()
+
+
+
+
+
+
+
 call_prices = [call.spot(F, K, T, r, vol) for K, vol in zip(x_fit, y_fit)]
+
 
 # 计算期权价格的二阶导数
 call_price_first_derivative = np.gradient(call_prices, x_fit)
@@ -270,7 +291,5 @@ plt.grid(True)
 # 設置 X 軸間隔為 
 plt.xticks(np.arange(min(x_fit), max(x_fit)+1, 500))
 
-# 設置 Y 軸起點為 0
-plt.ylim(bottom=0)
 
 plt.show()
