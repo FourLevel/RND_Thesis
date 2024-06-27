@@ -265,5 +265,5 @@ ax.legend()
 
 plt.xlabel('Strike Price (K)')
 plt.ylabel('Risk Neutral Density')
-plt.xlim(10000, 30000)
+plt.xlim(12500, 27500)
 plt.show()
