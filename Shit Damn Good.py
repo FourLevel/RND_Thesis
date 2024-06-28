@@ -272,3 +272,42 @@ plt.show()
 # 左邊直接拉到 0，右邊拉到 30,000，要固定。
 # Next, 不要有起始值，用論文裡的 Three Conditions，去試第一個條件。
 # 研究一下一個點的做法，(1) cdf, (2) pdf, (3) 斜率相等。
+
+
+# 合併左右尾的 GEV 跟中間的 RND
+left_tail = df_main[df_main['K'] < Ka0L]
+left_tail = left_tail[['K', 'Left']].set_index('K')
+middle = RND2[RND2['K'].between(Ka0L, Ka0R)]
+middle = middle[['K', 'RND']].set_index('K')
+right_tail = df_main[df_main['K'] > Ka0R]
+right_tail = right_tail[['K', 'Right']].set_index('K')
+bang = pd.concat([left_tail, middle, right_tail], axis=0)
+bang['Full RND'] = bang['Left'].fillna(bang['RND']).fillna(bang['Right'])
+Full_RND = bang['Full RND'].dropna()
+Full_RND = pd.DataFrame(Full_RND)
+
+# 繪製完整的 RND
+plt.figure(figsize=(10, 6), dpi=200)
+plt.plot(Full_RND.index, Full_RND['Full RND'], '-', label='Full RND')
+plt.xlabel('K')
+plt.ylabel('Full RND')
+plt.legend()
+plt.title('Full RND')
+plt.grid(True)
+plt.show()
+
+# 計算 CDF
+Full_RND_CDF = Full_RND.cumsum() / Full_RND.sum()
+print('K = 24,500, CDF =', Full_RND_CDF.loc[24500, 'Full RND']) # K = 24500 的 CDF
+print('K = 25,000, CDF =', Full_RND_CDF.loc[25000, 'Full RND']) # K = 25000 的 CDF
+print('K = 30,000, CDF =', Full_RND_CDF.loc[30000, 'Full RND']) # K = 30000 的 CDF
+
+# 繪製完整的 RND CDF
+plt.figure(figsize=(10, 6), dpi=200)
+plt.plot(Full_RND_CDF.index, Full_RND_CDF['Full RND'], '-', label='Full RND')
+plt.xlabel('K')
+plt.ylabel('Full RND CDF')
+plt.legend()
+plt.title('Full RND CDF')
+plt.grid(True)
+plt.show()
