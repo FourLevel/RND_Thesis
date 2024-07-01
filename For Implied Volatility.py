@@ -137,6 +137,22 @@ plt.grid(True)
 plt.show()
 
 
+# 繪製 call 與 put 合併的 XY 散布圖
+plt.figure(figsize=(10, 6), dpi=100)
+plt.scatter(df_call['K'], df_call['Implied Volatility'], color='orange', label='Call')
+plt.scatter(df_put['K'], df_put['Implied Volatility'], color='blue', label='Put')
+plt.xlabel('Strike Price (K)')
+plt.ylabel('Implied Volatility')
+plt.title('Implied Volatility vs Strike Price')
+plt.grid(True)
+plt.legend()
+plt.show()
+
+
+
+
+
+
 F = 20292
 T = 0.0356
 S = 20222
