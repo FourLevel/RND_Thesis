@@ -8,8 +8,8 @@ from scipy.stats import norm
 import matplotlib.pyplot as plt
 
 # 讀取數據
-df_call = pd.read_csv('RND_data/asher_data/For Implied Volatility/TXO_call_20240502.csv')
-df_put = pd.read_csv('RND_data/asher_data/For Implied Volatility/TXO_put_20240502.csv')
+df_call = pd.read_csv('RND_data/asher_data/For Implied Volatility/TXO_call_with iv_20240502.csv')
+df_put = pd.read_csv('RND_data/asher_data/For Implied Volatility/TXO_put_with iv_20240502.csv')
 df_call_with_iv = pd.read_csv('RND_data/asher_data/For Implied Volatility/TXO_call_with iv_20240502.csv')
 df_put_with_iv = pd.read_csv('RND_data/asher_data/For Implied Volatility/TXO_put_with iv_20240502.csv')
 
@@ -40,7 +40,7 @@ def mix_cp_function_v3(df_call, df_put):
     mix_cp = pd.concat([atm, otm], axis=0).sort_values(by='K').reset_index(drop=True)
     mix_cp[['C', 'P']] = mix.reset_index(drop=True)[['C', 'P']]
     mix_cp = mix_cp.dropna(subset=['mixIV'])
-    mix_cp = mix_cp.loc[mix_cp['K'] <= F*2.5]
+    mix_cp = mix_cp.loc[mix_cp['K'] <= 30000]
 
     return mix_cp
 
@@ -64,7 +64,7 @@ y = mix_cp['mixIV']
 knots = [20292]
 spline = LSQUnivariateSpline(x, y, knots, k=4)
 
-x_fit = np.linspace(15800, 23000, 125)
+x_fit = np.linspace(15800, 23000, (23000-15800)*10 )
 y_fit = spline(x_fit)
 
 
@@ -122,13 +122,14 @@ plt.grid(True)
 
 
 
-
-
 # 創建包含 RND 的 DataFrame
 RND2 = pd.DataFrame({'K': x_fit, 'RND': RND})
 RND2['RND_quantile'] = RND2['RND'].cumsum() / RND2['RND'].sum()
 RND2['cdf'] = RND2['RND'].cumsum()
 
+
+
+# 韵軒學姐的方法
 # GEV 分布擬合函數
 def FitGEVRightTail(beta, *args):
     Mean, sigma, phi = beta
@@ -160,6 +161,7 @@ def FitGEVLeftTail(beta, *args):
 
     return y
 
+# 找右尾 GEV 參數
 def GEV_Right_function(RND2):
     F = 20292
     right_edge = int(F * 3)
@@ -274,40 +276,172 @@ plt.show()
 # 研究一下一個點的做法，(1) cdf, (2) pdf, (3) 斜率相等。
 
 
-# 合併左右尾的 GEV 跟中間的 RND
-left_tail = df_main[df_main['K'] < Ka0L]
-left_tail = left_tail[['K', 'Left']].set_index('K')
-middle = RND2[RND2['K'].between(Ka0L, Ka0R)]
-middle = middle[['K', 'RND']].set_index('K')
-right_tail = df_main[df_main['K'] > Ka0R]
-right_tail = right_tail[['K', 'Right']].set_index('K')
-bang = pd.concat([left_tail, middle, right_tail], axis=0)
-bang['Full RND'] = bang['Left'].fillna(bang['RND']).fillna(bang['Right'])
-Full_RND = bang['Full RND'].dropna()
-Full_RND = pd.DataFrame(Full_RND)
 
-# 繪製完整的 RND
-plt.figure(figsize=(10, 6), dpi=200)
-plt.plot(Full_RND.index, Full_RND['Full RND'], '-', label='Full RND')
-plt.xlabel('K')
-plt.ylabel('Full RND')
-plt.legend()
-plt.title('Full RND')
-plt.grid(True)
-plt.show()
+# 20240706
+# 文獻裡的方法
+# GEV 分布擬合函數
 
-# 計算 CDF
-Full_RND_CDF = Full_RND.cumsum() / Full_RND.sum()
-print('K = 24,500, CDF =', Full_RND_CDF.loc[24500, 'Full RND']) # K = 24500 的 CDF
-print('K = 25,000, CDF =', Full_RND_CDF.loc[25000, 'Full RND']) # K = 25000 的 CDF
-print('K = 30,000, CDF =', Full_RND_CDF.loc[30000, 'Full RND']) # K = 30000 的 CDF
+def FitGEVRightTail(beta, *args):
+    Mean, sigma, phi = beta
+    a0R, a1R, Ka0R, Ka1R, fKa0R, fKa1R = args
 
-# 繪製完整的 RND CDF
-plt.figure(figsize=(10, 6), dpi=200)
-plt.plot(Full_RND_CDF.index, Full_RND_CDF['Full RND'], '-', label='Full RND')
-plt.xlabel('K')
-plt.ylabel('Full RND CDF')
-plt.legend()
-plt.title('Full RND CDF')
-plt.grid(True)
+    cdf0 = genextreme(phi, loc=Mean, scale=sigma).cdf(Ka0R)
+    pdf0 = genextreme(phi, loc=Mean, scale=sigma).pdf(Ka0R)
+    pdf1 = genextreme(phi, loc=Mean, scale=sigma).pdf(Ka1R)
+
+    # 目標函數計算
+    error = (cdf0 - a0R)**2 + (pdf0 - fKa0R)**2 + (pdf1 - fKa1R)**2
+
+    return error
+
+
+def GEV_Right_function(RND2):
+    F = 20292
+    a0R = 0.95
+    a1R = 0.99
+
+    Ka0R = RND2.query(f'RND_quantile>{a0R}').iloc[0]['K']
+    Ka1R = RND2.query(f'RND_quantile>{a1R}').iloc[0]['K']
+    fKa0R = np.interp(Ka0R, RND2['K'], RND2['RND'])
+    fKa1R = np.interp(Ka1R, RND2['K'], RND2['RND'])
+
+    start1 = [F, 4000, 0]
+    options = {'maxfun': 1e6, 'maxiter': 1e6}
+    result1 = minimize(FitGEVRightTail, start1, args=(a0R, a1R, Ka0R, Ka1R, fKa0R, fKa1R), method='Nelder-Mead', options=options, tol=1e-8)
+
+    Mean, sigma, phi = result1.x
+
+    K3 = np.arange(int(Ka0R * 0.8), int(F * 3), 1)
+    GEV_right = [genextreme(phi, loc=Mean, scale=sigma).pdf(k) for k in K3]
+    return K3, GEV_right, result1.x, Ka0R
+
+# 左尾只能用韵軒學姐的方法
+def FitGEVLeftTail(beta, *args):
+    Mean, sigma, phi = beta
+    a0, a1, a2, Ka0, Ka1, Ka2, fKa0, fKa1, fKa2, FKa0L = args
+
+    pdf0 = genextreme(phi, loc=Mean, scale=sigma).pdf(-Ka0)
+    pdf1 = genextreme(phi, loc=Mean, scale=sigma).pdf(-Ka1)
+    pdf2 = genextreme(phi, loc=Mean, scale=sigma).pdf(-Ka2)
+    pdf3 = genextreme(phi, loc=Mean, scale=sigma).pdf(0)
+    cdf0 = genextreme(phi, loc=Mean, scale=sigma).cdf(-Ka0)
+
+    # y = (pdf0 - fKa0)**2 + (pdf1 - fKa1)**2 + pdf3**2
+    '''
+    if pdf3 <= 0:
+        y = 1e100
+    '''
+    y = (pdf0 - fKa0)**2 + (pdf1 - fKa1)**2 + (pdf2 - fKa2)**2
+    
+    return y
+
+# 找左尾 GEV 參數
+def GEV_Left_function(RND2):
+    F = 20292
+    a0L = 0.01
+    a1L = 0.03
+    a2L = 0.05
+
+    Ka0L = RND2.query(f'RND_quantile<{a0L}').iloc[-1]['K']
+    Ka1L = RND2.query(f'RND_quantile<{a1L}').iloc[-1]['K']
+    Ka2L = RND2.query(f'RND_quantile<{a2L}').iloc[-1]['K']
+    fKa0L = np.interp(Ka0L, RND2['K'], RND2['RND'])
+    fKa1L = np.interp(Ka1L, RND2['K'], RND2['RND'])
+    fKa2L = np.interp(Ka2L, RND2['K'], RND2['RND'])
+    FKa0L = np.interp(Ka0L, RND2['K'], RND2['cdf'])
+
+    start1 = [-F, 20000, -0.1]
+    options = {'maxfun': 1e2, 'maxiter': 1e2}
+    result1 = minimize(FitGEVLeftTail, start1, args=(a0L, a1L, a2L, Ka0L, Ka1L, Ka2L, fKa0L, fKa1L, fKa2L, FKa0L), method='Nelder-Mead', options=options, tol=1e-8)
+    Mean, sigma, phi = result1.x
+
+    K4 = np.arange(0, int(Ka0L * 2), 1)
+    GEV_left = [genextreme(phi, loc=Mean, scale=sigma).pdf(-k) for k in K4]
+    return K4, GEV_left, result1.x, Ka0L
+
+
+'''
+# 文獻的方法不能用
+def FitGEVLeftTail(beta, *args):
+    Mean, sigma, phi = beta
+    a0L, a1L, Ka0L, Ka1L, fKa0L, fKa1L = args
+
+    cdf0 = genextreme(phi, loc=Mean, scale=sigma).cdf(-Ka0L)
+    pdf0 = genextreme(phi, loc=Mean, scale=sigma).pdf(-Ka0L)
+    pdf1 = genextreme(phi, loc=Mean, scale=sigma).pdf(-Ka1L)
+
+    error = (cdf0 - a0L)**2 + (pdf0 - fKa0L)**2 + (pdf1 - fKa1L)**2
+
+    if pdf1 <= 0:
+        error = 1e100
+
+    return error
+
+# 文獻的方法不能用
+def GEV_Left_function(RND2):
+    F = 20292
+    a0L = 0.01
+    a1L = 0.05
+
+    Ka0L = RND2.query(f'RND_quantile<{a0L}').iloc[-1]['K']
+    Ka1L = RND2.query(f'RND_quantile<{a1L}').iloc[-1]['K']
+    fKa0L = np.interp(Ka0L, RND2['K'], RND2['RND'])
+    fKa1L = np.interp(Ka1L, RND2['K'], RND2['RND'])
+
+    start1 = [-F, 4000, -0.1]
+    options = {'maxfun': 1e5, 'maxiter': 1e5}
+    result1 = minimize(FitGEVLeftTail, start1, args=(a0L, a1L, Ka0L, Ka1L, fKa0L, fKa1L), method='Nelder-Mead', options=options, tol=1e-8)
+    Mean, sigma, phi = result1.x
+
+    K4 = np.arange(0, int(Ka0L * 2), 1)
+    GEV_left = [genextreme(phi, loc=Mean, scale=sigma).pdf(-k) for k in K4]
+    return K4, GEV_left, result1.x, Ka0L
+'''
+
+
+def mix_RND_GEV(RND2, K3, GEV_right, K4, GEV_left, Ka0R, Ka0L):
+    df_Body = RND2[['K', 'RND']]
+    F = 20292
+    right_edge = int(F * 3)
+
+    df_Right = pd.DataFrame([K3, GEV_right], index=['K', 'Right']).T
+    df_main = df_Body.merge(df_Right, on='K', how='outer')
+
+    if isinstance(K4, np.ndarray):
+        df_Left = pd.DataFrame([K4, GEV_left], index=['K', 'Left']).T
+        df_main = df_main.merge(df_Left, on='K', how='outer')
+        df_main['meanLeft'] = df_main.query(f'K<{Ka0L}')[['Left']].mean(axis=1, skipna=True)
+    else:
+        df_main['meanLeft'] = 0
+
+    df_main = df_main.sort_values('K').reset_index(drop=True)
+    df_main.replace([np.inf, -np.inf], np.nan, inplace=True)
+
+    if RND2['K'].max() > right_edge:
+        df_main['meanRight'] = df_main.query(f'K>{Ka0R}')[['RND']].mean(axis=1, skipna=True)
+    else:
+        df_main['meanRight'] = df_main.query(f'K>{Ka0R}')[['Right']].mean(axis=1, skipna=True)
+
+    df_main['RND'] = df_main['meanRight']
+    df_main['RND'] = df_main['RND'].fillna(df_main['meanLeft'])
+    df_main['RND'] = df_main['RND'].fillna(df_main['RND'])
+    df_main['RND'] = np.where(df_main['RND'] < 0, 0, df_main['RND'])
+    df_main['RND'] = df_main['RND'].cumsum() / df_main['RND'].sum()
+
+    return df_main
+
+# Calculate and plot combined RND and GEV
+K3, GEV_right, param_right, Ka0R = GEV_Right_function(RND2)
+K4, GEV_left, param_left, Ka0L = GEV_Left_function(RND2)
+df_main = mix_RND_GEV(RND2, K3, GEV_right, K4, GEV_left, Ka0R, Ka0L)
+
+fig, ax = plt.subplots(1, 1, figsize=(8, 4), dpi=200)
+ax.set_title(f'GEV \n left: {", ".join([f"{x:.2f}" for x in param_left])} \n right: {", ".join([f"{x:.2f}" for x in param_right])}')
+ax.plot(RND2['K'], RND2['RND'], label='Original RND', color='royalblue')
+ax.plot(K4, GEV_left, ':', label='GEV for left tail', color='darkorange')
+ax.plot(K3, GEV_right, ':', label='GEV for right tail', color='mediumseagreen')
+ax.legend()
+plt.xlabel('Strike Price (K)')
+plt.ylabel('Risk Neutral Density')
+plt.xlim(12500, 30000)
 plt.show()
