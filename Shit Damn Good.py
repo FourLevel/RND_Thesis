@@ -315,6 +315,7 @@ def GEV_Right_function(RND2):
     GEV_right = [genextreme(phi, loc=Mean, scale=sigma).pdf(k) for k in K3]
     return K3, GEV_right, result1.x, Ka0R
 
+'''
 # 左尾只能用韵軒學姐的方法
 def FitGEVLeftTail(beta, *args):
     Mean, sigma, phi = beta
@@ -327,10 +328,10 @@ def FitGEVLeftTail(beta, *args):
     cdf0 = genextreme(phi, loc=Mean, scale=sigma).cdf(-Ka0)
 
     # y = (pdf0 - fKa0)**2 + (pdf1 - fKa1)**2 + pdf3**2
-    '''
-    if pdf3 <= 0:
-        y = 1e100
-    '''
+    
+    # if pdf3 <= 0:
+        # y = 1e100
+    
     y = (pdf0 - fKa0)**2 + (pdf1 - fKa1)**2 + (pdf2 - fKa2)**2
     
     return y
@@ -358,15 +359,16 @@ def GEV_Left_function(RND2):
     K4 = np.arange(0, int(Ka0L * 2), 1)
     GEV_left = [genextreme(phi, loc=Mean, scale=sigma).pdf(-k) for k in K4]
     return K4, GEV_left, result1.x, Ka0L
-
-
 '''
-# 文獻的方法不能用
+
+# 文獻的方法
 def FitGEVLeftTail(beta, *args):
     Mean, sigma, phi = beta
     a0L, a1L, Ka0L, Ka1L, fKa0L, fKa1L = args
 
-    cdf0 = genextreme(phi, loc=Mean, scale=sigma).cdf(-Ka0L)
+
+    cdf0_complement = genextreme(phi, loc=Mean, scale=sigma).cdf(-Ka0L)
+    cdf0 = 1 - cdf0_complement
     pdf0 = genextreme(phi, loc=Mean, scale=sigma).pdf(-Ka0L)
     pdf1 = genextreme(phi, loc=Mean, scale=sigma).pdf(-Ka1L)
 
@@ -377,7 +379,7 @@ def FitGEVLeftTail(beta, *args):
 
     return error
 
-# 文獻的方法不能用
+# 文獻的方法
 def GEV_Left_function(RND2):
     F = 20292
     a0L = 0.01
@@ -396,7 +398,7 @@ def GEV_Left_function(RND2):
     K4 = np.arange(0, int(Ka0L * 2), 1)
     GEV_left = [genextreme(phi, loc=Mean, scale=sigma).pdf(-k) for k in K4]
     return K4, GEV_left, result1.x, Ka0L
-'''
+
 
 
 def mix_RND_GEV(RND2, K3, GEV_right, K4, GEV_left, Ka0R, Ka0L):
