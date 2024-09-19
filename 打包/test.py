@@ -27,7 +27,7 @@ pd.set_option('display.float_format', '{:.4f}'.format)
 
 
 # RND main 
-observation_date = "2023-03-30"
+observation_date = "2023-01-09"
 expiration_date = "2023-03-31"
 call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
 F = find_F2()
