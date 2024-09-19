@@ -226,6 +226,7 @@ def get_FTS():
     S = df_idx["index_price"].loc[observation_date]
     return {"F": F, "T": T, "S": S}
 
+
 # 定義混合買權、賣權隱含波動率函數
 def mix_cp_function_v2():
     global observation_date, expiration_date, call_iv, put_iv, call_price, put_price, df_idx
@@ -546,7 +547,7 @@ def fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alph
 
 
 # 定義擬合 GPD 的函數，選 2 個點，比較 PDF
-def fit_gpd_tails_use_pdf_with_two_points(fit, delta_x, alpha_1L=0.03, alpha_2L=0.05, alpha_1R=0.95, alpha_2R=0.97):
+def fit_gpd_tails_use_pdf_with_two_points(fit, delta_x, alpha_1L=0.02, alpha_2L=0.05, alpha_1R=0.95, alpha_2R=0.98):
     # Right-tail
     loc = fit.iloc[(fit['left_cumulative'] - alpha_2R).abs().argsort()[:1]]
     missing_tail = loc['right_cumulative'].values[0]
@@ -683,7 +684,7 @@ def process_multiple_dates(observation_dates, expiration_date):
             df_options_mix = mix_cp_function_v2()
             smooth_IV = UnivariateSpline_function_v2(df_options_mix, power=4)
             fit = RND_function(smooth_IV)
-            fit, lower_bound, upper_bound = fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alpha_1L=0.02, alpha_1R=0.98)
+            fit, lower_bound, upper_bound = fit_gpd_tails_use_pdf_with_two_points(fit, delta_x, alpha_1L=0.02, alpha_2L=0.05, alpha_1R=0.95, alpha_2R=0.98)
             stats = calculate_rnd_statistics(fit, delta_x)
             all_stats[observation_date] = stats
             all_rnd_data[observation_date] = fit
