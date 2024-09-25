@@ -38,7 +38,7 @@ smooth_IV = UnivariateSpline_function_v2(df_options_mix, power=4)
 fit = RND_function(smooth_IV)
 plot_fitted_curves(df_options_mix, fit, observation_date, expiration_date)
 initial_i = 1
-delta_x = 1
+delta_x = 0.1
 
 
 '''
@@ -266,7 +266,7 @@ def UnivariateSpline_function_v2(mix_cp, power=3, s=None, w=None):
     
     min_K = 0 #int(min(oneday2["K"]) * 0.8) # 測試!!!!!!!!!!
     max_K = int(max(mix_cp.index)*1.2)#max(F*2//1000*1000, max(mix_cp.index)) +1
-    dK = 1
+    dK = 0.1
     K_fine = np.arange(min_K, max_K, dK, dtype=np.float64)
     Vol_fine = spline(K_fine)
 
