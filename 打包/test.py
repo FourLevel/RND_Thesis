@@ -27,8 +27,8 @@ pd.set_option('display.float_format', '{:.4f}'.format)
 
 
 # RND main 
-observation_date = "2023-01-09"
-expiration_date = "2023-03-31"
+observation_date = "2022-11-09"
+expiration_date = "2022-12-30"
 call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
 F = find_F2()
 get_FTS()
@@ -80,10 +80,10 @@ plot_full_density_cdf(fit, observation_date, expiration_date)
 stats = calculate_rnd_statistics(fit, delta_x)
 quants = list(stats['quantiles'].values())
 plot_rnd_with_quantiles(fit, quants, observation_date, expiration_date)
-print(f"  平均值: {stats['mean']:.4f}")
-print(f"  標準差: {stats['std']:.4f}")
-print(f"    偏度: {stats['skewness']:.4f}")
-print(f"    峰度: {stats['kurtosis']:.4f}")
+print(f"  平均值     Mean: {stats['mean']:.4f}")
+print(f"  標準差      Std: {stats['std']:.4f}")
+print(f"    偏度 Skewness: {stats['skewness']:.4f}")
+print(f"    峰度 Kurtosis: {stats['kurtosis']:.4f}")
 print()
 
 
@@ -102,14 +102,14 @@ plot_full_density_cdf(fit, observation_date, expiration_date)
 stats = calculate_rnd_statistics(fit, delta_x)
 quants = list(stats['quantiles'].values())
 plot_rnd_with_quantiles(fit, quants, observation_date, expiration_date)
-print(f"  平均值: {stats['mean']:.4f}")
-print(f"  標準差: {stats['std']:.4f}")
-print(f"    偏度: {stats['skewness']:.4f}")
-print(f"    峰度: {stats['kurtosis']:.4f}")
+print(f"  平均值     Mean: {stats['mean']:.4f}")
+print(f"  標準差      Std: {stats['std']:.4f}")
+print(f"    偏度 Skewness: {stats['skewness']:.4f}")
+print(f"    峰度 Kurtosis: {stats['kurtosis']:.4f}")
 print()
 
 
-''' 於同一張圖繪製多條 RND 曲線 '''
+''' 於同一張圖繪製多條 RND 曲線，自訂日期 '''
 # observation_dates = input('請輸入觀測日期，以逗點分隔: ').split(',')
 # observation_dates = [date.strip() for date in observation_dates]
 # observation_dates = ['20240731', '20240801', '20240802', '20240805', '20240806', '20240807']
@@ -117,7 +117,7 @@ print()
 # expiration_date = '202408'
 observation_dates = ['2022-09-06', '2022-10-10','2022-11-09', '2022-12-09', '2023-01-09', '2023-02-09', '2023-03-09']
 expiration_date = '2023-03-31'
-all_stats, all_rnd_data = process_multiple_dates(observation_dates, expiration_date)
+all_stats, all_rnd_data = process_multiple_dates_one_point(observation_dates, expiration_date)
 plot_multiple_rnd(all_rnd_data, observation_dates, expiration_date)
 
 # 印出每個日期的 mean, std, skewness, kurtosis
@@ -125,11 +125,76 @@ print("每個日期的統計數據：")
 for date in observation_dates:
     stats = all_stats[date]
     print(f"{date}:")
-    print(f"  平均值: {stats['mean']:.4f}")
-    print(f"  標準差: {stats['std']:.4f}")
-    print(f"    偏度: {stats['skewness']:.4f}")
-    print(f"    峰度: {stats['kurtosis']:.4f}")
+    print(f"  平均值     Mean: {stats['mean']:.4f}")
+    print(f"  標準差      Std: {stats['std']:.4f}")
+    print(f"    偏度 Skewness: {stats['skewness']:.4f}")
+    print(f"    峰度 Kurtosis: {stats['kurtosis']:.4f}")
     print()
+
+
+''' 於同一張圖繪製多條 RND 曲線，僅需輸入起始日和最終日 '''
+# 輸入起始日和最終日
+start_date = '2022-04-01'
+end_date = '2022-06-15'
+expiration_date = '2022-06-24'
+
+# 生成日期列表
+observation_dates = generate_dates(start_date, end_date, interval_days=1) # interval_days 可設定間隔天數
+
+# 處理數據並繪圖
+all_stats, all_rnd_data = process_multiple_dates_two_points(observation_dates, expiration_date) # 使用不同方法可調整函數
+plot_multiple_rnd(all_rnd_data, observation_dates, expiration_date)
+
+# 印出每個日期的統計數據
+print("每個日期的統計數據：")
+for date in observation_dates:
+    if date in all_stats:
+        stats = all_stats[date]
+        print(f"{date}:")
+        print(f"  平均值     Mean: {stats['mean']:.4f}")
+        print(f"  標準差      Std: {stats['std']:.4f}")
+        print(f"    偏度 Skewness: {stats['skewness']:.4f}")
+        print(f"    峰度 Kurtosis: {stats['kurtosis']:.4f}")
+        print()
+    else:
+        print(f"{date}: 無可用數據")
+        print()
+
+
+''' 整理統計數據 '''
+# 整理統計數據
+stats_data = []
+for date in observation_dates:
+    if date in all_stats:
+        stats = all_stats[date]
+        stats_data.append({
+            '日期': date,
+            '平均值 Mean': f"{stats['mean']:.4f}",
+            '標準差 Std': f"{stats['std']:.4f}",
+            '偏度 Skewness': f"{stats['skewness']:.4f}",
+            '峰度 Kurtosis': f"{stats['kurtosis']:.4f}"
+        })
+    else:
+        stats_data.append({
+            '日期': date,
+            '平均值 Mean': 'N/A',
+            '標準差 Std': 'N/A',
+            '偏度 Skewness': 'N/A',
+            '峰度 Kurtosis': 'N/A'
+        })
+
+# 創建 DataFrame
+df_stats = pd.DataFrame(stats_data)
+
+# 匯出成 CSV 檔
+csv_filename = f'RND_stats_{start_date}_to_{end_date}_exp_{expiration_date}.csv'
+df_stats.to_csv(csv_filename, index=False, encoding='utf-8')
+
+print(f"統計數據已匯出至 {csv_filename}")
+
+# 印出每個日期的統計數據
+print("每個日期的統計數據：")
+print(df_stats.to_string(index=False))
 
 
 
@@ -257,7 +322,7 @@ def mix_cp_function_v2():
 
 # 定義 UnivariateSpline 函數
 def UnivariateSpline_function_v2(mix_cp, power=3, s=None, w=None):
-    global observation_date, expiration_date
+    global observation_date, expiration_date, delta_x
     basicinfo = get_FTS()
     F = basicinfo["F"]
     T = basicinfo["T"]
@@ -266,7 +331,7 @@ def UnivariateSpline_function_v2(mix_cp, power=3, s=None, w=None):
     
     min_K = 0 #int(min(oneday2["K"]) * 0.8) # 測試!!!!!!!!!!
     max_K = int(max(mix_cp.index)*1.2)#max(F*2//1000*1000, max(mix_cp.index)) +1
-    dK = 0.1
+    dK = delta_x
     K_fine = np.arange(min_K, max_K, dK, dtype=np.float64)
     Vol_fine = spline(K_fine)
 
@@ -668,9 +733,9 @@ def plot_rnd_with_quantiles(fit, quants, observation_date, expiration_date):
     plt.show()
 
 
-# 定義處理多個日期的函數
-def process_multiple_dates(observation_dates, expiration_date):
-    global observation_date, call_iv, put_iv, call_price, put_price, df_idx, F, df_options_mix
+# 定義處理多個日期的函數，使用兩點的方法
+def process_multiple_dates_two_points(observation_dates, expiration_date):
+    global observation_date, call_iv, put_iv, call_price, put_price, df_idx, F, df_options_mix, delta_x
     all_stats = {}
     all_rnd_data = {}
 
@@ -679,12 +744,41 @@ def process_multiple_dates(observation_dates, expiration_date):
 
     for observation_date in observation_dates:
         try:
+            delta_x = delta_x
             F = find_F2()
             get_FTS()
             df_options_mix = mix_cp_function_v2()
             smooth_IV = UnivariateSpline_function_v2(df_options_mix, power=4)
             fit = RND_function(smooth_IV)
             fit, lower_bound, upper_bound = fit_gpd_tails_use_pdf_with_two_points(fit, delta_x, alpha_1L=0.02, alpha_2L=0.05, alpha_1R=0.95, alpha_2R=0.98)
+            stats = calculate_rnd_statistics(fit, delta_x)
+            all_stats[observation_date] = stats
+            all_rnd_data[observation_date] = fit
+        except Exception as e:
+            print(f"處理日期 {observation_date} 時出錯：{str(e)}")
+            continue
+
+    return all_stats, all_rnd_data
+
+
+# 定義處理多個日期的函數，使用一點的方法
+def process_multiple_dates_one_point(observation_dates, expiration_date):
+    global observation_date, call_iv, put_iv, call_price, put_price, df_idx, F, df_options_mix, delta_x
+    all_stats = {}
+    all_rnd_data = {}
+
+    # 只讀取一次數據
+    call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
+
+    for observation_date in observation_dates:
+        try:
+            delta_x = delta_x
+            F = find_F2()
+            get_FTS()
+            df_options_mix = mix_cp_function_v2()
+            smooth_IV = UnivariateSpline_function_v2(df_options_mix, power=4)
+            fit = RND_function(smooth_IV)
+            fit, lower_bound, upper_bound = fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alpha_1L=0.02, alpha_1R=0.95)
             stats = calculate_rnd_statistics(fit, delta_x)
             all_stats[observation_date] = stats
             all_rnd_data[observation_date] = fit
@@ -709,3 +803,15 @@ def plot_multiple_rnd(all_rnd_data, observation_dates, expiration_date):
     plt.legend(title='Observation Date', loc='upper left', bbox_to_anchor=(1, 1))
     plt.tight_layout()
     plt.show()
+
+
+# 生成日期列表
+def generate_dates(start_date, end_date, interval_days=1):
+    start = datetime.strptime(start_date, "%Y-%m-%d")
+    end = datetime.strptime(end_date, "%Y-%m-%d")
+    date_list = []
+    current = start
+    while current <= end:
+        date_list.append(current.strftime("%Y-%m-%d"))
+        current += timedelta(days=interval_days)
+    return date_list
