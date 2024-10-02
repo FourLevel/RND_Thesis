@@ -29,8 +29,8 @@ pd.set_option('display.float_format', '{:.4f}'.format)
 # RND main
 initial_i = 1
 delta_x = 0.1 
-observation_date = "2021-05-12"
-expiration_date = "2021-06-25"
+observation_date = "2022-04-11"
+expiration_date = "2022-06-24"
 call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
 F = find_F2()
 get_FTS()
@@ -134,12 +134,12 @@ for date in observation_dates:
 
 ''' 於同一張圖繪製多條 RND 曲線，僅需輸入起始日和最終日 '''
 # 輸入起始日和最終日
-start_date = '2021-04-01'
-end_date = '2021-06-15'
-expiration_date = '2021-06-25'
+start_date = '2022-10-09'
+end_date = '2022-12-11'
+expiration_date = '2022-12-30'
 
 # 生成日期列表
-observation_dates = generate_dates(start_date, end_date, interval_days=8) # interval_days 可設定間隔天數
+observation_dates = generate_dates(start_date, end_date, interval_days=1) # interval_days 可設定間隔天數
 
 # 處理數據並繪圖
 all_stats, all_rnd_data = process_multiple_dates_one_point(observation_dates, expiration_date) # 使用不同方法可調整函數
@@ -540,6 +540,11 @@ def fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alph
     left_tail_point = alpha_1L
     right_tail_point = alpha_1R
 
+    # 檢查並調整 left_cumulative
+    if fit['left_cumulative'].iloc[0] > alpha_1L:
+        left_tail_point = fit['left_cumulative'].iloc[0] + 0.001
+        print(f"警告：left_cumulative[0] ({fit['left_cumulative'].iloc[0]:.4f}) 大於 alpha_1L ({alpha_1L})。將 left_tail_point 設為 {left_tail_point:.4f}")
+
     # Right-tail
     loc = fit.iloc[(fit['left_cumulative'] - right_tail_point).abs().argsort()[:1]]
     right_end = loc['strike_price'].values[0]
@@ -550,11 +555,21 @@ def fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alph
 
     i = initial_i
     while True:
-        loc_slope = (-loc['RND_density'].values[0] + fit.iloc[fit.index.get_loc(loc.index[0])+i]['RND_density']) / (i * delta_x)
-        if loc_slope < 0:
-            break
-        else:
+        try:
+            loc_index = fit.index.get_loc(loc.index[0])
+            if loc_index - i < 0:
+                print(f"警告：i={i} 太大，導致索引為負。調整 initial_i 或檢查數據。")
+                break
+            loc_slope = (-loc['RND_density'].values[0] + fit.iloc[loc_index-i]['RND_density']) / (i * delta_x)
+            if loc_slope < 0:
+                break
             i += 1
+        except KeyError:
+            print(f"警告：loc.index[0]={loc.index[0]} 不在 fit 的索引中。檢查數據一致性。")
+            break
+        except IndexError:
+            print(f"警告：索引 {loc_index-i} 超出範圍。調整 initial_i 或檢查數據。")
+            break
 
     def right_func(x):
         xi, scale = x
@@ -778,7 +793,7 @@ def process_multiple_dates_one_point(observation_dates, expiration_date):
             df_options_mix = mix_cp_function_v2()
             smooth_IV = UnivariateSpline_function_v2(df_options_mix, power=4)
             fit = RND_function(smooth_IV)
-            fit, lower_bound, upper_bound = fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alpha_1L=0.02, alpha_1R=0.95)
+            fit, lower_bound, upper_bound = fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alpha_1L=0.05, alpha_1R=0.95)
             stats = calculate_rnd_statistics(fit, delta_x)
             all_stats[observation_date] = stats
             all_rnd_data[observation_date] = fit
