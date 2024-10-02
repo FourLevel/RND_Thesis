@@ -134,15 +134,15 @@ for date in observation_dates:
 
 ''' 於同一張圖繪製多條 RND 曲線，僅需輸入起始日和最終日 '''
 # 輸入起始日和最終日
-start_date = '2022-10-09'
-end_date = '2022-12-11'
-expiration_date = '2022-12-30'
+start_date = '2021-04-01'
+end_date = '2021-06-15'
+expiration_date = '2021-06-25'
 
 # 生成日期列表
-observation_dates = generate_dates(start_date, end_date, interval_days=1) # interval_days 可設定間隔天數
+observation_dates = generate_dates(start_date, end_date, interval_days=5) # interval_days 可設定間隔天數
 
 # 處理數據並繪圖
-all_stats, all_rnd_data = process_multiple_dates_one_point(observation_dates, expiration_date) # 使用不同方法可調整函數
+all_stats, all_rnd_data = process_multiple_dates_two_points(observation_dates, expiration_date) # 使用不同方法可調整函數
 plot_multiple_rnd(all_rnd_data, observation_dates, expiration_date)
 
 # 印出每個日期的統計數據
