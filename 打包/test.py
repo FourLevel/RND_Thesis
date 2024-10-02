@@ -26,9 +26,11 @@ pd.set_option("display.max_rows", 30)
 pd.set_option('display.float_format', '{:.4f}'.format)
 
 
-# RND main 
-observation_date = "2022-10-09"
-expiration_date = "2022-12-30"
+# RND main
+initial_i = 1
+delta_x = 0.1 
+observation_date = "2021-05-12"
+expiration_date = "2021-06-25"
 call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
 F = find_F2()
 get_FTS()
@@ -37,8 +39,6 @@ plot_implied_volatility(df_options_mix)
 smooth_IV = UnivariateSpline_function_v2(df_options_mix, power=4)
 fit = RND_function(smooth_IV)
 plot_fitted_curves(df_options_mix, fit, observation_date, expiration_date)
-initial_i = 1
-delta_x = 0.1
 
 
 '''
@@ -72,7 +72,7 @@ get_FTS()
 df_options_mix = mix_cp_function_v2()
 smooth_IV = UnivariateSpline_function_v2(df_options_mix, power=4)
 fit = RND_function(smooth_IV)
-fit, lower_bound, upper_bound = fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alpha_1L=0.02, alpha_1R=0.98)
+fit, lower_bound, upper_bound = fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alpha_1L=0.05, alpha_1R=0.95)
 # 繪製完整 RND 曲線與完整 CDF 曲線
 plot_gpd_tails(fit, lower_bound, upper_bound, observation_date, expiration_date)
 plot_full_density_cdf(fit, observation_date, expiration_date)
@@ -134,15 +134,15 @@ for date in observation_dates:
 
 ''' 於同一張圖繪製多條 RND 曲線，僅需輸入起始日和最終日 '''
 # 輸入起始日和最終日
-start_date = '2022-04-01'
-end_date = '2022-06-15'
-expiration_date = '2022-06-24'
+start_date = '2021-04-01'
+end_date = '2021-06-15'
+expiration_date = '2021-06-25'
 
 # 生成日期列表
-observation_dates = generate_dates(start_date, end_date, interval_days=1) # interval_days 可設定間隔天數
+observation_dates = generate_dates(start_date, end_date, interval_days=8) # interval_days 可設定間隔天數
 
 # 處理數據並繪圖
-all_stats, all_rnd_data = process_multiple_dates_two_points(observation_dates, expiration_date) # 使用不同方法可調整函數
+all_stats, all_rnd_data = process_multiple_dates_one_point(observation_dates, expiration_date) # 使用不同方法可調整函數
 plot_multiple_rnd(all_rnd_data, observation_dates, expiration_date)
 
 # 印出每個日期的統計數據
