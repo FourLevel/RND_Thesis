@@ -7,9 +7,10 @@ from datetime import datetime, timedelta
 from scipy.optimize import bisect, minimize
 from scipy.stats import norm, genextreme
 from scipy.signal import find_peaks, savgol_filter
-from scipy.interpolate import UnivariateSpline, InterpolatedUnivariateSpline, CubicSpline
+from scipy.interpolate import UnivariateSpline, InterpolatedUnivariateSpline, CubicSpline, interp1d
 from plotly.subplots import make_subplots
 from scipy.stats import genpareto as gpd
+from scipy.integrate import quad
 import os
 import re
 import asyncio
@@ -29,7 +30,7 @@ pd.set_option('display.float_format', '{:.4f}'.format)
 # RND main
 initial_i = 1
 delta_x = 0.1 
-observation_date = "2022-04-11"
+observation_date = "2022-04-15"
 expiration_date = "2022-06-24"
 call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
 F = find_F2()
@@ -195,6 +196,38 @@ print(f"統計數據已匯出至 {csv_filename}")
 # 印出每個日期的統計數據
 print("每個日期的統計數據：")
 print(df_stats.to_string(index=False))
+
+
+''' 回推買權價格 '''   
+# 計算單個買權價格
+strike_price = 40000  # 假設行權價為 100
+call_option_price = calculate_call_option_price_discrete(fit, strike_price)
+print(f"買權價格 Call Option Price: {call_option_price:.4f}")
+
+# 計算所有大於 future_price 的行權價的買權價格，每隔 50 個計算一次
+future_price = F  # 設定 future_price
+call_option_prices = calculate_call_option_prices_above_future_price(fit, future_price, step=50)
+
+for strike_price, call_price in call_option_prices.items():
+    print(f"Strike Price: {strike_price:.2f} 的買權價格: {call_price:.4f}")
+
+# 繪製圖表
+plt.figure(figsize=(10, 6), dpi=100)
+# 擬合的買權價格
+plt.plot(fit['strike_price'], fit['fit_call'], color='orange', label='Fitted Call Price')
+# 計算的買權價格
+strike_prices = list(call_option_prices.keys())
+call_prices = list(call_option_prices.values())
+plt.plot(strike_prices, call_prices, linestyle='-', color='blue', label='Calculated Call Price')
+plt.title(f'Call Option Prices for Strike Prices Above Future Price (Future Price: {F:.2f})')
+plt.xlabel('Strike Price')
+plt.ylabel('Call Option Price')
+# plt.xlim(30000, 100000)
+# plt.ylim(0, 5000)
+plt.legend()
+plt.grid(True)
+plt.show()
+
 
 
 
@@ -573,16 +606,16 @@ def fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alph
 
     def right_func(x):
         xi, scale = x
-        alpha_0R = loc['right_cumulative'].values[0]
-        X_alpha_0R = loc['strike_price'].values[0]
+        alpha_1R = loc['right_cumulative'].values[0]
+        X_alpha_1R = loc['strike_price'].values[0]
         density_error = ((missing_tail * gpd.pdf(loc['strike_price'].values[0] + delta_x, xi, loc=loc['strike_price'].values[0], scale=scale) - loc['RND_density'].values[0]) / delta_x - loc_slope)
-        cdf_error = (gpd.cdf(X_alpha_0R, xi, loc=loc['strike_price'].values[0], scale=scale) - alpha_0R)
+        cdf_error = (gpd.cdf(X_alpha_1R, xi, loc=loc['strike_price'].values[0], scale=scale) - alpha_1R)
         return (1e12 * density_error**2) + (1e12 * cdf_error**2)
 
     right_fit = minimize(right_func, [0, right_sigma], bounds=[(-1, 1), (0, np.inf)], method='SLSQP')
     right_xi, right_sigma = right_fit.x
 
-    fit = pd.merge(fit, pd.DataFrame({'strike_price': np.arange(fit['strike_price'].max() + delta_x, F*2.5, delta_x)}), how='outer')
+    fit = pd.merge(fit, pd.DataFrame({'strike_price': np.arange(fit['strike_price'].max() + delta_x, F*2, delta_x)}), how='outer')
     fit['right_extra_density'] = missing_tail * gpd.pdf(fit['strike_price'], right_xi, loc=loc['strike_price'].values[0], scale=right_sigma)
     fit['full_density'] = np.where(fit['strike_price'] > loc['strike_price'].values[0], fit['right_extra_density'], fit['RND_density'])
 
@@ -603,10 +636,10 @@ def fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alph
 
     def left_func(x):
         xi, scale = x
-        alpha_0L = loc['left_cumulative'].values[0]
-        X_alpha_0L = loc['reverse_strike'].values[0]
+        alpha_1L = loc['left_cumulative'].values[0]
+        X_alpha_1L = loc['reverse_strike'].values[0]
         density_error = ((missing_tail * gpd.pdf(loc['reverse_strike'].values[0] + delta_x, xi, loc=loc['reverse_strike'].values[0], scale=scale) - loc['RND_density'].values[0]) / delta_x - loc_slope)
-        cdf_error = (gpd.cdf(X_alpha_0L, xi, loc=loc['reverse_strike'].values[0], scale=scale) - alpha_0L)
+        cdf_error = (gpd.cdf(X_alpha_1L, xi, loc=loc['reverse_strike'].values[0], scale=scale) - alpha_1L)
         return (1e12 * density_error**2) + (1e12 * cdf_error**2)
 
     left_fit = minimize(left_func, [0, left_sigma], bounds=[(-1, 1), (0, np.inf)], method='SLSQP')
@@ -830,3 +863,38 @@ def generate_dates(start_date, end_date, interval_days=1):
         date_list.append(current.strftime("%Y-%m-%d"))
         current += timedelta(days=interval_days)
     return date_list
+
+
+# 使用積分反推買權價格
+def calculate_call_option_price_discrete(fit, strike_price):
+    # 假設 'x' 是資產價格，'pdf' 是對應的概率密度
+    x_values = fit['strike_price'].values
+    pdf_values = fit['full_density'].values
+    
+    # 計算期權價格的離散積分
+    call_payoffs = np.maximum(x_values - strike_price, 0)
+    call_price = np.trapz(call_payoffs * pdf_values, x_values)
+    
+    return call_price
+
+
+# 計算所有大於 future_price 的行權價的買權價格，每隔 50 個計算一次
+def calculate_call_option_prices_above_future_price(fit, future_price, step=50):
+    # 假設 'x' 是資產價格，'pdf' 是對應的概率密度
+    x_values = fit['strike_price'].values
+    pdf_values = fit['full_density'].values
+    
+    # 找到所有大於 future_price 的行權價
+    strike_prices = x_values[x_values > future_price]
+    
+    # 每隔 step 個行權價計算一次
+    selected_strike_prices = strike_prices[::step]
+    
+    # 計算每個選定行權價的買權價格
+    call_option_prices = {}
+    for strike_price in selected_strike_prices:
+        call_payoffs = np.maximum(x_values - strike_price, 0)
+        call_price = np.trapz(call_payoffs * pdf_values, x_values)
+        call_option_prices[strike_price] = call_price
+    
+    return call_option_prices
