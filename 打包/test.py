@@ -30,8 +30,8 @@ pd.set_option('display.float_format', '{:.4f}'.format)
 # RND main
 initial_i = 1
 delta_x = 0.1 
-observation_date = "2022-04-15"
-expiration_date = "2022-06-24"
+observation_date = "2022-12-14"
+expiration_date = "2022-12-15"
 call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
 F = find_F2()
 get_FTS()
@@ -204,9 +204,9 @@ strike_price = 40000  # 假設行權價為 100
 call_option_price = calculate_call_option_price_discrete(fit, strike_price)
 print(f"買權價格 Call Option Price: {call_option_price:.4f}")
 
-# 計算所有大於 future_price 的行權價的買權價格，每隔 50 個計算一次
+# 計算所有大於 future_price 的行權價的買權價格，每隔 100 個計算一次
 future_price = F  # 設定 future_price
-call_option_prices = calculate_call_option_prices_above_future_price(fit, future_price, step=50)
+call_option_prices = calculate_call_option_prices_above_future_price(fit, future_price, step=100)
 
 for strike_price, call_price in call_option_prices.items():
     print(f"Strike Price: {strike_price:.2f} 的買權價格: {call_price:.4f}")
