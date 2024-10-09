@@ -463,7 +463,7 @@ def plot_fitted_curves(df_options_mix, fit, observation_date, expiration_date):
     plt.plot(fit['strike_price'], fit['fit_imp_vol'], color='orange', label='Fitted IV')
     plt.xlabel('Strike Price')
     plt.ylabel('Implied Volatility')
-    plt.title(f'Implied Volatility Smile of TWSE options on {observation_date} (expired on {expiration_date})')
+    plt.title(f'Implied Volatility Smile of BTC options on {observation_date} (expired on {expiration_date})')
     plt.legend()
     plt.show()
 
@@ -472,7 +472,7 @@ def plot_fitted_curves(df_options_mix, fit, observation_date, expiration_date):
     plt.plot(fit['strike_price'], fit['fit_call'], color='orange', label='Fitted Call Price')
     plt.xlabel('Strike Price')
     plt.ylabel('Price')
-    plt.title(f'Call Curve of TWSE options on {observation_date} (expired on {expiration_date})')
+    plt.title(f'Call Curve of BTC options on {observation_date} (expired on {expiration_date})')
     plt.legend()
     plt.show()
 
@@ -481,7 +481,7 @@ def plot_fitted_curves(df_options_mix, fit, observation_date, expiration_date):
     plt.plot(fit['strike_price'], fit['RND_density'], color='orange')
     plt.xlabel('Strike Price')
     plt.ylabel('Density')
-    plt.title(f'Empirical Risk-Neutral Density of TWSE options on {observation_date} (expired on {expiration_date})')
+    plt.title(f'Empirical Risk-Neutral Density of BTC options on {observation_date} (expired on {expiration_date})')
     plt.show()
 
     # 繪製經驗風險中性累積分佈函數 (CDF)
@@ -489,7 +489,7 @@ def plot_fitted_curves(df_options_mix, fit, observation_date, expiration_date):
     plt.plot(fit['strike_price'], fit['left_cumulative'], color='orange')
     plt.xlabel('Strike Price')
     plt.ylabel('Probability')
-    plt.title(f'Empirical Risk-Neutral Probability of TWSE options on {observation_date} (expired on {expiration_date})')
+    plt.title(f'Empirical Risk-Neutral Probability of BTC options on {observation_date} (expired on {expiration_date})')
     plt.show()
 
 
@@ -660,19 +660,19 @@ def fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alph
 
 
 # 定義擬合 GPD 的函數，選 2 個點，比較 PDF
-def fit_gpd_tails_use_pdf_with_two_points(fit, delta_x, alpha_1L=0.02, alpha_2L=0.05, alpha_1R=0.95, alpha_2R=0.98):
+def fit_gpd_tails_use_pdf_with_two_points(fit, delta_x, alpha_2L=0.02, alpha_1L=0.05, alpha_1R=0.95, alpha_2R=0.98):
     # Right-tail
-    loc = fit.iloc[(fit['left_cumulative'] - alpha_2R).abs().argsort()[:1]]
+    loc = fit.iloc[(fit['left_cumulative'] - alpha_1R).abs().argsort()[:1]]
     missing_tail = loc['right_cumulative'].values[0]
     right_sigma = missing_tail / loc['RND_density'].values[0]
-    X_alpha_1R = fit.iloc[(fit['right_cumulative'] - alpha_1R).abs().argsort()[:1]]['strike_price'].values[0]
+    X_alpha_2R = fit.iloc[(fit['right_cumulative'] - alpha_2R).abs().argsort()[:1]]['strike_price'].values[0]
 
     def right_func(x):
         xi, scale = x
-        X_alpha_2R = loc['strike_price'].values[0]
-        density_error_2R = (missing_tail * gpd.pdf(X_alpha_2R + delta_x, xi, loc=X_alpha_2R, scale=scale) - loc['RND_density'].values[0])
+        X_alpha_1R = loc['strike_price'].values[0]
         density_error_1R = (missing_tail * gpd.pdf(X_alpha_1R + delta_x, xi, loc=X_alpha_1R, scale=scale) - loc['RND_density'].values[0])
-        return (1e12 * density_error_2R**2) + (1e12 * density_error_1R**2)
+        density_error_2R = (missing_tail * gpd.pdf(X_alpha_2R + delta_x, xi, loc=X_alpha_2R, scale=scale) - loc['RND_density'].values[0])
+        return (1e12 * density_error_1R**2) + (1e12 * density_error_2R**2)
 
     right_fit = minimize(right_func, [0, right_sigma], bounds=[(-1, 1), (0, np.inf)], method='SLSQP')
     right_xi, right_sigma = right_fit.x
@@ -727,7 +727,7 @@ def plot_gpd_tails(fit, lower_bound, upper_bound, observation_date, expiration_d
              label='Right tail GPD', color='green', linestyle=':', linewidth=2)
     plt.xlabel('Strike Price')
     plt.ylabel('Probability')
-    plt.title(f'Empirical Risk-Neutral Probability of TWSE options on {observation_date} (expired on {expiration_date})')
+    plt.title(f'Empirical Risk-Neutral Probability of BTC options on {observation_date} (expired on {expiration_date})')
     plt.legend()
     plt.show()
 
@@ -738,7 +738,7 @@ def plot_full_density_cdf(fit, observation_date, expiration_date):
     plt.plot(fit['strike_price'], fit['full_density_cumulative'])
     plt.xlabel('Strike Price')
     plt.ylabel('Probability')
-    plt.title(f'Empirical Risk-Neutral Probability of TWSE options on {observation_date} (expired on {expiration_date})')
+    plt.title(f'Empirical Risk-Neutral Probability of BTC options on {observation_date} (expired on {expiration_date})')
     plt.show()
 
 
@@ -753,7 +753,7 @@ def calculate_rnd_statistics(fit, delta_x):
     RND_kurt = np.sum(fit['std_strike']**4 * fit['full_density'] * delta_x) - 3
 
     # 計算分位數
-    fit['left_cumulative'] = np.cumsum(fit['full_density'] * delta_x)
+    # fit['left_cumulative'] = np.cumsum(fit['full_density'] * delta_x)
     quantiles = [0.05, 0.25, 0.5, 0.75, 0.95]
     quants = [fit.loc[(fit['left_cumulative'] - q).abs().idxmin(), 'strike_price'] for q in quantiles]
 
@@ -776,7 +776,7 @@ def plot_rnd_with_quantiles(fit, quants, observation_date, expiration_date):
         plt.axvline(x=quant, linestyle='--', color='gray')
     plt.xlabel('Strike Price')
     plt.ylabel('RND')
-    plt.title(f'Risk-Neutral Density of TWSE options on {observation_date} (expired on {expiration_date})')
+    plt.title(f'Risk-Neutral Density of BTC options on {observation_date} (expired on {expiration_date})')
     plt.legend()
     plt.show()
 
