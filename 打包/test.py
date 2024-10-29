@@ -30,8 +30,8 @@ pd.set_option('display.float_format', '{:.4f}'.format)
 # RND main
 initial_i = 1
 delta_x = 0.1 
-observation_date = "2022-12-14"
-expiration_date = "2022-12-15"
+observation_date = "2021-05-12"
+expiration_date = "2021-06-25"
 call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
 F = find_F2()
 get_FTS()
@@ -135,12 +135,12 @@ for date in observation_dates:
 
 ''' 於同一張圖繪製多條 RND 曲線，僅需輸入起始日和最終日 '''
 # 輸入起始日和最終日
-start_date = '2021-04-01'
-end_date = '2021-06-15'
+start_date = '2021-04-14'
+end_date = '2021-06-09'
 expiration_date = '2021-06-25'
 
 # 生成日期列表
-observation_dates = generate_dates(start_date, end_date, interval_days=5) # interval_days 可設定間隔天數
+observation_dates = generate_dates(start_date, end_date, interval_days=7) # interval_days 可設定間隔天數
 
 # 處理數據並繪圖
 all_stats, all_rnd_data = process_multiple_dates_two_points(observation_dates, expiration_date) # 使用不同方法可調整函數
@@ -204,9 +204,9 @@ strike_price = 40000  # 假設行權價為 100
 call_option_price = calculate_call_option_price_discrete(fit, strike_price)
 print(f"買權價格 Call Option Price: {call_option_price:.4f}")
 
-# 計算所有大於 future_price 的行權價的買權價格，每隔 100 個計算一次
+# 計算所有大於 future_price 的行權價的買權價格，每隔 1000 個計算一次
 future_price = F  # 設定 future_price
-call_option_prices = calculate_call_option_prices_above_future_price(fit, future_price, step=100)
+call_option_prices = calculate_call_option_prices_above_future_price(fit, future_price, step=1000)
 
 for strike_price, call_price in call_option_prices.items():
     print(f"Strike Price: {strike_price:.2f} 的買權價格: {call_price:.4f}")
@@ -227,6 +227,64 @@ plt.ylabel('Call Option Price')
 plt.legend()
 plt.grid(True)
 plt.show()
+
+
+
+----------------------------------------------------------------------------------------------------------------
+
+# 輸入起始日和最終日
+start_date = '2021-04-14'
+end_date = '2021-06-09'
+expiration_date = '2021-06-25'
+
+# 生成日期列表
+observation_dates = generate_dates(start_date, end_date, interval_days=7) # interval_days 可設定間隔天數
+
+# 處理數據
+all_stats, all_rnd_data, all_call_option_prices = find_call_option_prices_above_future_price_multiple_dates_two_points(observation_dates, expiration_date) # 使用不同方法可調整函數
+
+# 印出每個日期的 call option prices
+for date in observation_dates:
+    print(f"{date}: {all_call_option_prices[date]}")
+
+
+# 創建一個空的列表來存儲 DataFrame
+dataframes = []
+
+# 填充 DataFrame
+for date in observation_dates:
+    call_prices = all_call_option_prices[date]
+    df = pd.DataFrame(call_prices, index=[date])
+    dataframes.append(df)
+
+# 使用 pd.concat() 將所有 DataFrame 合併
+df_call_option_prices = pd.concat(dataframes)
+
+# 將 NaN 值填充為空字串，方便顯示
+df_call_option_prices.fillna('', inplace=True)
+
+# 打印 DataFrame
+print(df_call_option_prices)
+
+# 如果需要，可以將 DataFrame 匯出為 CSV 檔案
+# df_call_option_prices.to_csv('call_option_prices.csv', index=True, encoding='utf-8')
+
+# 找尋 call_price 變數中，index 與 df_call_option_prices 的 index 相同的值，並比對 column name，向下增加 row
+for date in df_call_option_prices.index:
+    if date in call_price.index:
+        # 將 call_price 中的值添加到 df_call_option_prices 中的新行
+        new_row = call_price.loc[date].reindex(df_call_option_prices.columns)
+        df_call_option_prices = pd.concat([df_call_option_prices, pd.DataFrame(new_row).T], ignore_index=False)
+
+# 將 df_call_option_prices 中有 missing value 的 column 刪除
+df_call_option_prices = df_call_option_prices.dropna(axis=1)
+
+# 打印更新後的 DataFrame
+print("更新後的 df_call_option_prices：")
+print(df_call_option_prices)
+
+
+----------------------------------------------------------------------------------------------------------------
 
 
 
@@ -888,7 +946,7 @@ def calculate_call_option_prices_above_future_price(fit, future_price, step=50):
     strike_prices = x_values[x_values > future_price]
     
     # 每隔 step 個行權價計算一次
-    selected_strike_prices = strike_prices[::step]
+    selected_strike_prices = [sp for sp in strike_prices if sp % step == 0]
     
     # 計算每個選定行權價的買權價格
     call_option_prices = {}
@@ -898,3 +956,35 @@ def calculate_call_option_prices_above_future_price(fit, future_price, step=50):
         call_option_prices[strike_price] = call_price
     
     return call_option_prices
+
+
+
+# 定義處理多個日期的函數，使用兩點的方法
+def find_call_option_prices_above_future_price_multiple_dates_two_points(observation_dates, expiration_date):
+    global observation_date, call_iv, put_iv, call_price, put_price, df_idx, F, df_options_mix, delta_x
+    all_stats = {}
+    all_rnd_data = {}
+    all_call_option_prices = {}
+
+    # 只讀取一次數據
+    call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
+
+    for observation_date in observation_dates:
+        try:
+            delta_x = delta_x
+            F = find_F2()
+            get_FTS()
+            df_options_mix = mix_cp_function_v2()
+            smooth_IV = UnivariateSpline_function_v2(df_options_mix, power=4)
+            fit = RND_function(smooth_IV)
+            fit, lower_bound, upper_bound = fit_gpd_tails_use_pdf_with_two_points(fit, delta_x, alpha_1L=0.02, alpha_2L=0.05, alpha_1R=0.95, alpha_2R=0.98)
+            call_option_prices = calculate_call_option_prices_above_future_price(fit, future_price, step=1000)
+            stats = calculate_rnd_statistics(fit, delta_x)
+            all_stats[observation_date] = stats
+            all_rnd_data[observation_date] = fit
+            all_call_option_prices[observation_date] = call_option_prices
+        except Exception as e:
+            print(f"處理日期 {observation_date} 時出錯：{str(e)}")
+            continue
+
+    return all_stats, all_rnd_data, all_call_option_prices
