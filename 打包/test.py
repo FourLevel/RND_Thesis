@@ -233,38 +233,46 @@ plt.show()
 
 '''-----------------------------------------------------------------------------------------------------------------'''
 # 輸入起始日和最終日
-start_date = '2021-04-14'
-end_date = '2021-06-09'
-expiration_date = '2021-06-25'
+try:
+    start_date = '2021-04-14'
+    end_date = '2021-06-09'
+    expiration_date = '2021-06-25'
 
-# 生成日期列表
-observation_dates = generate_dates(start_date, end_date, interval_days=7) # interval_days 可設定間隔天數
+    # 生成日期列表
+    observation_dates = generate_dates(start_date, end_date, interval_days=7)
 
-# 處理數據
-all_stats, all_rnd_data, all_call_option_prices = find_call_option_prices_above_future_price_multiple_dates_two_points(observation_dates, expiration_date) # 使用不同方法可調整函數
+    # 處理數據
+    all_stats, all_rnd_data, all_call_option_prices = find_call_option_prices_above_future_price_multiple_dates_two_points(observation_dates, expiration_date)
 
-# 印出每個日期的 call option prices
-for date in observation_dates:
-    print(f"{date}: {all_call_option_prices[date]}")
+    # 創建空的 DataFrame 來存儲結果
+    df_call_option_prices = pd.DataFrame()
 
+    # 遍歷每個日期的數據
+    for date in observation_dates:
+        if date in all_call_option_prices:
+            call_prices = all_call_option_prices[date]
+            if isinstance(call_prices, tuple) and len(call_prices) > 0:
+                prices_dict = call_prices[0]  # 取得第一個元素(字典)
+                if prices_dict:  # 確認字典不為空
+                    df = pd.DataFrame([prices_dict], index=[date])
+                    df_call_option_prices = pd.concat([df_call_option_prices, df])
+                    print(f"處理日期 {date} 的數據成功")
+                else:
+                    print(f"日期 {date} 的價格字典為空")
+            else:
+                print(f"日期 {date} 的數據格式不正確")
+        else:
+            print(f"找不到日期 {date} 的數據")
 
-# 創建一個空的列表來存儲 DataFrame
-dataframes = []
+    # 打印最終結果
+    if not df_call_option_prices.empty:
+        print("\n最終的期權價格DataFrame:")
+        print(df_call_option_prices)
+    else:
+        print("\n沒有成功處理任何數據")
 
-# 填充 DataFrame
-for date in observation_dates:
-    call_prices = all_call_option_prices[date]
-    df = pd.DataFrame(call_prices, index=[date])
-    dataframes.append(df)
-
-# 使用 pd.concat() 將所有 DataFrame 合併
-df_call_option_prices = pd.concat(dataframes)
-
-# 將 NaN 值填充為空字串，方便顯示
-df_call_option_prices.fillna(0, inplace=True)
-
-# 打印 DataFrame
-print(df_call_option_prices)
+except Exception as e:
+    print(f"執行過程中發生錯誤: {str(e)}")
 
 # 如果需要，可以將 DataFrame 匯出為 CSV 檔案
 # df_call_option_prices.to_csv('call_option_prices.csv', index=True, encoding='utf-8')
@@ -284,6 +292,7 @@ print("更新後的 df_call_option_prices：")
 print(df_call_option_prices)
 
 '''-----------------------------------------------------------------------------------------------------------------'''
+
 
 
 
@@ -945,6 +954,8 @@ def calculate_call_option_prices_above_future_price(fit, future_price, step=50):
     
     # 每隔 step 個行權價計算一次
     selected_strike_prices = [sp for sp in strike_prices if sp % step <= 0.01]
+    # 將 selected_strike_prices 轉換為整數
+    selected_strike_prices = [int(sp) for sp in selected_strike_prices]
     
     # 計算每個選定行權價的買權價格
     call_option_prices = {}
