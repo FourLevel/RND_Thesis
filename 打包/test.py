@@ -30,7 +30,7 @@ pd.set_option('display.float_format', '{:.4f}'.format)
 # RND main
 initial_i = 1
 delta_x = 0.1 
-observation_date = "2021-05-19"
+observation_date = "2021-05-12"
 expiration_date = "2021-06-25"
 call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
 F = find_F2()
@@ -242,7 +242,8 @@ try:
     observation_dates = generate_dates(start_date, end_date, interval_days=7)
 
     # 處理數據
-    all_stats, all_rnd_data, all_call_option_prices = find_call_option_prices_above_future_price_multiple_dates_two_points(observation_dates, expiration_date)
+    # all_stats, all_rnd_data, all_call_option_prices = find_call_option_prices_above_future_price_multiple_dates_two_points(observation_dates, expiration_date)
+    all_stats, all_rnd_data, all_call_option_prices = find_call_option_prices_above_future_price_multiple_dates_one_point(observation_dates, expiration_date)
 
     # 創建空的 DataFrame 來存儲結果
     df_call_option_prices = pd.DataFrame()
@@ -274,8 +275,6 @@ try:
 except Exception as e:
     print(f"執行過程中發生錯誤: {str(e)}")
 
-# 如果需要，可以將 DataFrame 匯出為 CSV 檔案
-# df_call_option_prices.to_csv('call_option_prices.csv', index=True, encoding='utf-8')
 
 # 找尋 call_price 變數中，index 與 df_call_option_prices 的 index 相同的值，並比對 column name，向下增加 row
 for date in df_call_option_prices.index:
@@ -290,6 +289,11 @@ df_call_option_prices = df_call_option_prices.dropna(axis=1)
 # 打印更新後的 DataFrame
 print("更新後的 df_call_option_prices：")
 print(df_call_option_prices)
+
+
+# 如果需要，可以將 DataFrame 匯出為 CSV 檔案
+df_call_option_prices.to_csv('call_option_prices.csv', index=True, encoding='utf-8')
+
 
 '''-----------------------------------------------------------------------------------------------------------------'''
 
@@ -968,7 +972,7 @@ def calculate_call_option_prices_above_future_price(fit, future_price, step=50):
 
 
 
-# 定義處理多個日期的函數，使用兩點的方法
+# 定義處理多個日期的函數，求買權價格，使用兩點的方法
 def find_call_option_prices_above_future_price_multiple_dates_two_points(observation_dates, expiration_date):
     global observation_date, call_iv, put_iv, call_price, put_price, df_idx, F, df_options_mix, delta_x
     all_stats = {}
@@ -987,6 +991,38 @@ def find_call_option_prices_above_future_price_multiple_dates_two_points(observa
             smooth_IV = UnivariateSpline_function_v2(df_options_mix, power=4)
             fit = RND_function(smooth_IV)
             fit, lower_bound, upper_bound = fit_gpd_tails_use_pdf_with_two_points(fit, delta_x, alpha_1L=0.02, alpha_2L=0.05, alpha_1R=0.95, alpha_2R=0.98)
+            call_option_prices = calculate_call_option_prices_above_future_price(fit, future_price, step=1000)
+            stats = calculate_rnd_statistics(fit, delta_x)
+            all_stats[observation_date] = stats
+            all_rnd_data[observation_date] = fit
+            all_call_option_prices[observation_date] = call_option_prices
+        except Exception as e:
+            print(f"處理日期 {observation_date} 時出錯：{str(e)}")
+            continue
+
+    return all_stats, all_rnd_data, all_call_option_prices
+
+
+
+# 定義處理多個日期的函數，求買權價格，使用一點的方法
+def find_call_option_prices_above_future_price_multiple_dates_one_point(observation_dates, expiration_date):
+    global observation_date, call_iv, put_iv, call_price, put_price, df_idx, F, df_options_mix, delta_x
+    all_stats = {}
+    all_rnd_data = {}
+    all_call_option_prices = {}
+
+    # 只讀取一次數據
+    call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
+
+    for observation_date in observation_dates:
+        try:
+            delta_x = delta_x
+            F = find_F2()
+            get_FTS()
+            df_options_mix = mix_cp_function_v2()
+            smooth_IV = UnivariateSpline_function_v2(df_options_mix, power=4)
+            fit = RND_function(smooth_IV)
+            fit, lower_bound, upper_bound = fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alpha_1L=0.05, alpha_1R=0.95)
             call_option_prices = calculate_call_option_prices_above_future_price(fit, future_price, step=1000)
             stats = calculate_rnd_statistics(fit, delta_x)
             all_stats[observation_date] = stats
