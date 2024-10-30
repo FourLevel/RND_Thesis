@@ -30,7 +30,7 @@ pd.set_option('display.float_format', '{:.4f}'.format)
 # RND main
 initial_i = 1
 delta_x = 0.1 
-observation_date = "2021-05-12"
+observation_date = "2021-05-19"
 expiration_date = "2021-06-25"
 call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
 F = find_F2()
@@ -206,7 +206,7 @@ print(f"買權價格 Call Option Price: {call_option_price:.4f}")
 
 # 計算所有大於 future_price 的行權價的買權價格，每隔 1000 個計算一次
 future_price = F  # 設定 future_price
-call_option_prices = calculate_call_option_prices_above_future_price(fit, future_price, step=1000)
+call_option_prices, x_values, strike_prices, selected_strike_prices = calculate_call_option_prices_above_future_price(fit, future_price, step=1000)
 
 for strike_price, call_price in call_option_prices.items():
     print(f"Strike Price: {strike_price:.2f} 的買權價格: {call_price:.4f}")
@@ -230,8 +230,8 @@ plt.show()
 
 
 
-----------------------------------------------------------------------------------------------------------------
 
+'''-----------------------------------------------------------------------------------------------------------------'''
 # 輸入起始日和最終日
 start_date = '2021-04-14'
 end_date = '2021-06-09'
@@ -261,7 +261,7 @@ for date in observation_dates:
 df_call_option_prices = pd.concat(dataframes)
 
 # 將 NaN 值填充為空字串，方便顯示
-df_call_option_prices.fillna('', inplace=True)
+df_call_option_prices.fillna(0, inplace=True)
 
 # 打印 DataFrame
 print(df_call_option_prices)
@@ -283,9 +283,7 @@ df_call_option_prices = df_call_option_prices.dropna(axis=1)
 print("更新後的 df_call_option_prices：")
 print(df_call_option_prices)
 
-
-----------------------------------------------------------------------------------------------------------------
-
+'''-----------------------------------------------------------------------------------------------------------------'''
 
 
 
@@ -673,7 +671,7 @@ def fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alph
     right_fit = minimize(right_func, [0, right_sigma], bounds=[(-1, 1), (0, np.inf)], method='SLSQP')
     right_xi, right_sigma = right_fit.x
 
-    fit = pd.merge(fit, pd.DataFrame({'strike_price': np.arange(fit['strike_price'].max() + delta_x, F*2, delta_x)}), how='outer')
+    fit = pd.merge(fit, pd.DataFrame({'strike_price': np.arange(fit['strike_price'].max() + delta_x, 160010, delta_x)}), how='outer')
     fit['right_extra_density'] = missing_tail * gpd.pdf(fit['strike_price'], right_xi, loc=loc['strike_price'].values[0], scale=right_sigma)
     fit['full_density'] = np.where(fit['strike_price'] > loc['strike_price'].values[0], fit['right_extra_density'], fit['RND_density'])
 
@@ -735,7 +733,7 @@ def fit_gpd_tails_use_pdf_with_two_points(fit, delta_x, alpha_2L=0.02, alpha_1L=
     right_fit = minimize(right_func, [0, right_sigma], bounds=[(-1, 1), (0, np.inf)], method='SLSQP')
     right_xi, right_sigma = right_fit.x
 
-    fit = pd.merge(fit, pd.DataFrame({'strike_price': np.arange(fit['strike_price'].max() + delta_x, F*2, delta_x)}), how='outer')
+    fit = pd.merge(fit, pd.DataFrame({'strike_price': np.arange(fit['strike_price'].max() + delta_x, 160010, delta_x)}), how='outer')
     fit['right_extra_density'] = missing_tail * gpd.pdf(fit['strike_price'], right_xi, loc=loc['strike_price'].values[0], scale=right_sigma)
     fit['full_density'] = np.where(fit['strike_price'] > loc['strike_price'].values[0], fit['right_extra_density'], fit['RND_density'])
 
@@ -946,7 +944,7 @@ def calculate_call_option_prices_above_future_price(fit, future_price, step=50):
     strike_prices = x_values[x_values > future_price]
     
     # 每隔 step 個行權價計算一次
-    selected_strike_prices = [sp for sp in strike_prices if sp % step == 0]
+    selected_strike_prices = [sp for sp in strike_prices if sp % step <= 0.01]
     
     # 計算每個選定行權價的買權價格
     call_option_prices = {}
@@ -955,7 +953,7 @@ def calculate_call_option_prices_above_future_price(fit, future_price, step=50):
         call_price = np.trapz(call_payoffs * pdf_values, x_values)
         call_option_prices[strike_price] = call_price
     
-    return call_option_prices
+    return call_option_prices, x_values, strike_prices, selected_strike_prices
 
 
 
