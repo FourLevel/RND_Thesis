@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from scipy.optimize import bisect, minimize
 from scipy.stats import norm, genextreme
 from scipy.signal import find_peaks, savgol_filter
-from scipy.interpolate import UnivariateSpline, InterpolatedUnivariateSpline, CubicSpline, interp1d
+from scipy.interpolate import UnivariateSpline, LSQUnivariateSpline, InterpolatedUnivariateSpline, CubicSpline, interp1d
 from plotly.subplots import make_subplots
 from scipy.stats import genpareto as gpd
 from scipy.integrate import quad
@@ -38,6 +38,7 @@ get_FTS()
 df_options_mix = mix_cp_function_v2()
 plot_implied_volatility(df_options_mix)
 smooth_IV = UnivariateSpline_function_v2(df_options_mix, power=4)
+smooth_IV = UnivariateSpline_function_v3(df_options_mix, power=4)
 fit = RND_function(smooth_IV)
 plot_fitted_curves(df_options_mix, fit, observation_date, expiration_date)
 
@@ -192,6 +193,29 @@ def UnivariateSpline_function_v2(mix_cp, power=4, s=None, w=None):
     
     #smooth_IV = add_other_info(date, oneday2, smooth_IV, call_strike, df_idxprice, df_futuresprice, expiration_date, IVname)
     #smooth_IV.index = smooth_IV["K"].values
+    return smooth_IV
+
+
+def UnivariateSpline_function_v3(mix_cp, power=4, s=None, w=None):
+    global observation_date, expiration_date, delta_x
+    basicinfo = get_FTS()
+    F = basicinfo["F"]
+    T = basicinfo["T"]
+    S = basicinfo["S"]
+    
+    # 在 F 的位置加入 knot
+    knots = np.array([F])
+    spline = LSQUnivariateSpline(mix_cp.index, mix_cp["mixIV"], knots, k=power)
+    
+    min_K = 0
+    max_K = int(max(mix_cp.index)*1.2)
+    dK = delta_x
+    K_fine = np.arange(min_K, max_K, dK, dtype=np.float64)
+    Vol_fine = spline(K_fine)
+
+    smooth_IV = pd.DataFrame([K_fine, Vol_fine], index=["K", "mixIV"]).T
+    smooth_IV["C"] = call.future(F, smooth_IV["K"], T, smooth_IV["mixIV"], S)
+    
     return smooth_IV
 
 
