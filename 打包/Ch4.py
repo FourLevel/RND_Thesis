@@ -333,8 +333,8 @@ def RND_function(smooth_IV):
 # 定義繪製擬合曲線的函數
 def plot_fitted_curves(df_options_mix, fit, observation_date, expiration_date):
     # 繪製隱含波動率微笑擬合圖
-    plt.figure(figsize=(10, 6), dpi=100)
-    plt.scatter(df_options_mix.index, df_options_mix['mixIV'], label='Observed IV')
+    plt.figure(figsize=(10, 6), dpi=200)
+    plt.scatter(df_options_mix.index, df_options_mix['mixIV'],color='green', label='Mix IV')
     plt.plot(fit['strike_price'], fit['fit_imp_vol'], color='orange', label='Fitted IV')
     plt.xlabel('Strike Price')
     plt.ylabel('Implied Volatility')
@@ -343,7 +343,7 @@ def plot_fitted_curves(df_options_mix, fit, observation_date, expiration_date):
     plt.show()
 
     # 繪製買權曲線
-    plt.figure(figsize=(10, 6), dpi=100)
+    plt.figure(figsize=(10, 6), dpi=200)
     plt.plot(fit['strike_price'], fit['fit_call'], color='orange', label='Fitted Call Price')
     plt.xlabel('Strike Price')
     plt.ylabel('Price')
@@ -352,7 +352,7 @@ def plot_fitted_curves(df_options_mix, fit, observation_date, expiration_date):
     plt.show()
 
     # 繪製經驗風險中性密度 (PDF)
-    plt.figure(figsize=(10, 6), dpi=100)
+    plt.figure(figsize=(10, 6), dpi=200)
     plt.plot(fit['strike_price'], fit['RND_density'], color='orange')
     plt.xlabel('Strike Price')
     plt.ylabel('Density')
@@ -360,7 +360,7 @@ def plot_fitted_curves(df_options_mix, fit, observation_date, expiration_date):
     plt.show()
 
     # 繪製經驗風險中性累積分佈函數 (CDF)
-    plt.figure(figsize=(10, 6), dpi=100)
+    plt.figure(figsize=(10, 6), dpi=200)
     plt.plot(fit['strike_price'], fit['left_cumulative'], color='orange')
     plt.xlabel('Strike Price')
     plt.ylabel('Probability')
