@@ -34,12 +34,14 @@ instruments = pd.read_csv('deribit_data/instruments.csv')
 # 新增函數來處理單一到期日的所有數據
 def process_single_expiration(expiration_date):
     try:
+        # 初始化全域變數
+        global observation_date, initial_i, delta_x
+        initial_i = 1
+        delta_x = 0.1
+        
         # 計算 observation date (到期日前一天)
         exp_date = datetime.strptime(expiration_date, "%Y-%m-%d")
         obs_date = (exp_date - timedelta(days=1)).strftime("%Y-%m-%d")
-        
-        # 設定全域變數
-        global observation_date
         observation_date = obs_date
         
         # 讀取數據
@@ -52,7 +54,7 @@ def process_single_expiration(expiration_date):
         smooth_IV = UnivariateSpline_function_v2(df_options_mix, power=4)
         fit = RND_function(smooth_IV)
         fit, lower_bound, upper_bound = fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alpha_1L=0.05, alpha_1R=0.95)
-        
+ 
         # 計算統計量
         stats = calculate_rnd_statistics(fit, delta_x)
         
