@@ -43,30 +43,6 @@ fit = RND_function(smooth_IV)
 plot_fitted_curves(df_options_mix, fit, observation_date, expiration_date)
 
 
-'''
-# 擬合 GPD 的函數，選 1 個點，僅比較斜率，不要用這個方法了
-call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
-F = find_F2()
-get_FTS()
-df_options_mix = mix_cp_function_v2()
-smooth_IV = UnivariateSpline_function_v2(df_options_mix, power=4)
-fit = RND_function(smooth_IV)
-fit, lower_bound, upper_bound = fit_gpd_tails_use_slope_with_one_point(fit, initial_i, delta_x)
-# 繪製完整 RND 曲線與完整 CDF 曲線
-plot_gpd_tails(fit, lower_bound, upper_bound, observation_date, expiration_date)
-plot_full_density_cdf(fit, observation_date, expiration_date)
-# 計算 RND 曲線統計量並繪製具有分位數的 RND 曲線
-stats = calculate_rnd_statistics(fit, delta_x)
-quants = list(stats['quantiles'].values())
-plot_rnd_with_quantiles(fit, quants, observation_date, expiration_date)
-print(f"  平均值: {stats['mean']:.4f}")
-print(f"  標準差: {stats['std']:.4f}")
-print(f"    偏度: {stats['skewness']:.4f}")
-print(f"    峰度: {stats['kurtosis']:.4f}")
-print()
-'''
-
-
 ''' 擬合 GPD 的函數，選 1 個點，比較斜率與 CDF '''
 call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
 F = find_F2()
