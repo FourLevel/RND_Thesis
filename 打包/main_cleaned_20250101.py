@@ -1,25 +1,33 @@
+# 基本數據處理與分析套件
 import pandas as pd
 import numpy as np
 import statsmodels.api as sm
+# 繪圖套件
 import matplotlib.pyplot as plt
 import plotly.graph_objs as go
-from datetime import datetime, timedelta
-from scipy.optimize import bisect, minimize
-from scipy.stats import norm, genextreme
-from scipy.signal import find_peaks, savgol_filter
-from scipy.interpolate import UnivariateSpline, InterpolatedUnivariateSpline, CubicSpline, interp1d
 from plotly.subplots import make_subplots
-from scipy.stats import genpareto as gpd
+# 日期時間處理
+from datetime import datetime, timedelta
+import calendar
+# 數學與統計相關套件
+from scipy.optimize import bisect, minimize
+from scipy.stats import norm, genextreme, genpareto as gpd
+from scipy.signal import find_peaks, savgol_filter
+from scipy.interpolate import UnivariateSpline, LSQUnivariateSpline, InterpolatedUnivariateSpline, CubicSpline, interp1d
 from scipy.integrate import quad
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.tsa.stattools import adfuller
+# 系統與工具套件
 import os
 import re
 import asyncio
 import nest_asyncio
 import warnings
-import calendar
+# 自定義套件
 from mypackage.bs import *
 from mypackage.marketIV import *
 from mypackage.moment import *
+
 
 nest_asyncio.apply()
 warnings.filterwarnings("ignore")
@@ -30,14 +38,14 @@ pd.set_option('display.float_format', '{:.4f}'.format)
 # RND main
 initial_i = 1
 delta_x = 0.1 
-observation_date = "2021-05-12"
-expiration_date = "2021-06-25"
+observation_date = "2021-02-19"
+expiration_date = "2021-02-20"
 call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
 F = find_F2()
 get_FTS()
 df_options_mix = mix_cp_function_v2()
 plot_implied_volatility(df_options_mix)
-smooth_IV = UnivariateSpline_function_v2(df_options_mix, power=4, s=None, w=None)
+# smooth_IV = UnivariateSpline_function_v2(df_options_mix, power=4, s=None, w=None)
 smooth_IV = UnivariateSpline_function_v3(df_options_mix, power=4, s=None, w=None)
 fit = RND_function(smooth_IV)
 plot_fitted_curves(df_options_mix, fit, observation_date, expiration_date)
@@ -72,7 +80,7 @@ get_FTS()
 df_options_mix = mix_cp_function_v2()
 smooth_IV = UnivariateSpline_function_v2(df_options_mix, power=4)
 fit = RND_function(smooth_IV)
-fit, lower_bound, upper_bound = fit_gpd_tails_use_pdf_with_two_points(fit, delta_x)
+fit, lower_bound, upper_bound = fit_gpd_tails_use_pdf_with_two_points(fit, delta_x, alpha_2L=0.02, alpha_1L=0.05, alpha_1R=0.95, alpha_2R=0.98)
 # 繪製完整 RND 曲線與完整 CDF 曲線
 plot_gpd_tails(fit, lower_bound, upper_bound, observation_date, expiration_date)
 plot_full_density_cdf(fit, observation_date, expiration_date)
@@ -88,11 +96,6 @@ print()
 
 
 ''' 於同一張圖繪製多條 RND 曲線，自訂日期 '''
-# observation_dates = input('請輸入觀測日期，以逗點分隔: ').split(',')
-# observation_dates = [date.strip() for date in observation_dates]
-# observation_dates = ['20240731', '20240801', '20240802', '20240805', '20240806', '20240807']
-# expiration_date = input('請輸入到期日期: ')
-# expiration_date = '202408'
 observation_dates = ['2022-09-06', '2022-10-10','2022-11-09', '2022-12-09', '2023-01-09', '2023-02-09', '2023-03-09']
 expiration_date = '2023-03-31'
 all_stats, all_rnd_data = process_multiple_dates_one_point(observation_dates, expiration_date)
@@ -206,9 +209,7 @@ plt.grid(True)
 plt.show()
 
 
-
-
-'''-----------------------------------------------------------------------------------------------------------------'''
+''' 回推買權價格 '''
 # 輸入起始日和最終日
 try:
     start_date = '2021-04-14'
@@ -252,7 +253,6 @@ try:
 except Exception as e:
     print(f"執行過程中發生錯誤: {str(e)}")
 
-
 # 找尋 call_price 變數中，index 與 df_call_option_prices 的 index 相同的值，並比對 column name，向下增加 row
 for date in df_call_option_prices.index:
     if date in call_price.index:
@@ -267,12 +267,1193 @@ df_call_option_prices = df_call_option_prices.dropna(axis=1)
 print("更新後的 df_call_option_prices：")
 print(df_call_option_prices)
 
-
 # 如果需要，可以將 DataFrame 匯出為 CSV 檔案
 df_call_option_prices.to_csv('call_option_prices.csv', index=True, encoding='utf-8')
 
 
-'''-----------------------------------------------------------------------------------------------------------------'''
+''' 迴歸分析資料整理_每天_一個點方法 '''
+# 讀取 instruments.csv
+instruments = pd.read_csv('deribit_data/instruments.csv')
+
+# 建立 DataFrame 存放迴歸資料
+df_regression_day = pd.DataFrame()
+
+# 選擇日期，將 type 為 day, week, quarter, year 的 date 選出，作為 expiration_dates
+expiration_dates = instruments[instruments['type'].isin(['day', 'week', 'quarter', 'year'])]['date'].unique()
+
+# 將 expiration_dates 轉換為 datetime 格式
+expiration_dates = pd.to_datetime(expiration_dates)
+
+# 計算 observation_dates，將 expiration_dates 前一日設定為 observation_dates，存入 observation_dates
+observation_dates = expiration_dates - pd.Timedelta(days=1)
+
+# 將結果轉回字串格式
+observation_dates = observation_dates.strftime('%Y-%m-%d')
+expiration_dates = expiration_dates.strftime('%Y-%m-%d')
+
+# 將 expiration_dates 和 observation_dates 設定為 DataFrame 的欄位
+df_regression_day['observation_dates'] = observation_dates
+df_regression_day['expiration_dates'] = expiration_dates
+
+# 建立儲存統計資料的 list
+stats_data = []
+
+# 對每一組日期進行計算
+for obs_date, exp_date in zip(df_regression_day['observation_dates'], df_regression_day['expiration_dates']):
+    try:
+        # 設定全域變數
+        global observation_date, expiration_date
+        observation_date = obs_date
+        expiration_date = exp_date
+        
+        # 讀取資料並進行 RND 計算
+        call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
+        F = find_F2()
+        get_FTS()
+        df_options_mix = mix_cp_function_v2()
+        smooth_IV = UnivariateSpline_function_v3(df_options_mix, power=4)
+        fit = RND_function(smooth_IV)
+        
+        # GPD 尾端擬合
+        fit, lower_bound, upper_bound = fit_gpd_tails_use_slope_and_cdf_with_one_point(
+            fit, initial_i, delta_x, alpha_1L=0.05, alpha_1R=0.95
+        )
+        
+        # 計算統計量
+        stats = calculate_rnd_statistics(fit, delta_x)
+        
+        # 整理統計資料
+        stats_data.append({
+            'Observation Date': obs_date,
+            'Expiration Date': exp_date,
+            'Mean': stats['mean'],
+            'Std': stats['std'],
+            'Skewness': stats['skewness'],
+            'Kurtosis': stats['kurtosis'],
+            '5% Quantile': stats['quantiles'][0.05],
+            '25% Quantile': stats['quantiles'][0.25],
+            'Median': stats['quantiles'][0.5],
+            '75% Quantile': stats['quantiles'][0.75],
+            '95% Quantile': stats['quantiles'][0.95]
+        })
+        
+        print(f"成功處理：觀察日 {obs_date}，到期日 {exp_date}")
+        
+    except Exception as e:
+        print(f"處理失敗：觀察日 {obs_date}，到期日 {exp_date}")
+        print(f"錯誤訊息：{str(e)}")
+        continue
+
+# 將統計資料轉換為 DataFrame
+df_regression_day_stats = pd.DataFrame(stats_data)
+
+# 將結果儲存為 CSV
+output_filename = 'RND_regression_day_stats_一個點.csv'
+df_regression_day_stats.to_csv(output_filename, index=False, encoding='utf-8-sig')
+print(f"\n統計資料已儲存至 {output_filename}")
+
+# 顯示統計摘要
+print("\n統計資料摘要：")
+print(df_regression_day_stats.describe())
+
+# 讀取 BTC 價格資料
+df_btcusdt = pd.read_csv('binance_data/BTCUSDT_spot.csv')
+
+# 讀取當中 date 與 close 欄位
+df_btcusdt_close = df_btcusdt[['date', 'close']]
+
+# 將 df_btcusdt_close 的日期欄位轉換為 datetime 格式
+df_btcusdt_close['date'] = pd.to_datetime(df_btcusdt_close['date'])
+
+# 將 df_regression_day_stats 的日期欄位轉換為 datetime 格式
+df_regression_day_stats['Observation Date'] = pd.to_datetime(df_regression_day_stats['Observation Date'])
+df_regression_day_stats['Expiration Date'] = pd.to_datetime(df_regression_day_stats['Expiration Date'])
+
+# 將 df_btcusdt_close 設定 date 為索引
+df_btcusdt_close.set_index('date', inplace=True)
+
+# 顯示可用的日期範圍
+print("價格數據的日期範圍：")
+print(f"起始日期：{df_btcusdt_close.index.min()}")
+print(f"結束日期：{df_btcusdt_close.index.max()}")
+
+# 篩選出在價格數據日期範圍內的觀察資料
+mask = (df_regression_day_stats['Observation Date'] >= df_btcusdt_close.index.min()) & \
+       (df_regression_day_stats['Expiration Date'] <= df_btcusdt_close.index.max())
+df_regression_day_stats_filtered = df_regression_day_stats[mask].copy()
+
+# 計算當期對數報酬率
+df_regression_day_stats_filtered['T Return'] = np.log(
+    df_btcusdt_close.loc[df_regression_day_stats_filtered['Expiration Date']]['close'].values / 
+    df_btcusdt_close.loc[df_regression_day_stats_filtered['Observation Date']]['close'].values
+)
+
+# 計算前期對數報酬率
+# 先將資料按觀察日排序
+df_regression_day_stats_filtered = df_regression_day_stats_filtered.sort_values('Observation Date')
+# 使用 shift 函數來獲取前期的報酬率
+df_regression_day_stats_filtered['T-1 Return'] = df_regression_day_stats_filtered['T Return'].shift(1)
+df_regression_day_stats_filtered['T-2 Return'] = df_regression_day_stats_filtered['T Return'].shift(2)
+df_regression_day_stats_filtered['T-3 Return'] = df_regression_day_stats_filtered['T Return'].shift(3)
+df_regression_day_stats_filtered['T-4 Return'] = df_regression_day_stats_filtered['T Return'].shift(4)
+
+# 去除 NaN 值
+df_regression_day_stats_filtered = df_regression_day_stats_filtered.dropna()
+
+# 顯示結果
+print(f"\n符合日期範圍的資料筆數：{len(df_regression_day_stats_filtered)}")
+print("\n加入對數報酬率後的資料：")
+print(df_regression_day_stats_filtered)
+
+# 將結果儲存為 CSV
+output_filename = 'RND_regression_day_stats_with_returns_一個點.csv'
+df_regression_day_stats_filtered.to_csv(output_filename, index=False, encoding='utf-8-sig')
+print(f"\n已將結果儲存至 {output_filename}")
+
+
+''' 執行迴歸分析_每天_一個點方法 '''
+# 讀取資料
+df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_with_returns_一個點.csv')
+df_fear_greed_index = pd.read_csv('Crypto Fear and Greed Index_2020-2024.csv')
+
+# 將兩個 DataFrame 的日期欄位都轉換為 datetime 格式
+df_regression_day_stats_with_returns['Observation Date'] = pd.to_datetime(df_regression_day_stats_with_returns['Observation Date'])
+df_fear_greed_index['date'] = pd.to_datetime(df_fear_greed_index['date'])
+
+# 將 df_fear_greed_index 的 date 設為索引
+df_fear_greed_index.set_index('date', inplace=True)
+
+# 使用 merge 來匹配日期
+df_regression_day_stats_with_returns = pd.merge(
+    df_regression_day_stats_with_returns,
+    df_fear_greed_index[['value']],
+    left_on='Observation Date',
+    right_index=True,
+    how='left'
+)
+
+# 重命名 value 欄位
+df_regression_day_stats_with_returns.rename(columns={'value': 'Fear and Greed Index'}, inplace=True)
+
+# 檢查是否有缺失值
+missing_values = df_regression_day_stats_with_returns['Fear and Greed Index'].isna().sum()
+print(f"Fear and Greed Index 中的缺失值數量：{missing_values}")
+
+# 將平均值、標準差及 Fear and Greed Index 進行標準化
+df_regression_day_stats_with_returns['Mean'] = (df_regression_day_stats_with_returns['Mean'] - df_regression_day_stats_with_returns['Mean'].mean()) / df_regression_day_stats_with_returns['Mean'].std()
+df_regression_day_stats_with_returns['Std'] = (df_regression_day_stats_with_returns['Std'] - df_regression_day_stats_with_returns['Std'].mean()) / df_regression_day_stats_with_returns['Std'].std()
+df_regression_day_stats_with_returns['Fear and Greed Index'] = (df_regression_day_stats_with_returns['Fear and Greed Index'] - df_regression_day_stats_with_returns['Fear and Greed Index'].mean()) / df_regression_day_stats_with_returns['Fear and Greed Index'].std()
+
+# 針對所有變數進行 ADF 檢定
+variables = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
+            'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
+
+print("ADF 檢定結果：")
+print("-" * 50)
+for var in variables:
+    result = adfuller(df_regression_week_stats_with_returns[var].dropna())
+    print(f"\n變數：{var}")
+    print(f"ADF 統計量：{result[0]:.4f}")
+    print(f"p-value：{result[1]:.4f}")
+    print("臨界值：")
+    for key, value in result[4].items():
+        print(f"\t{key}: {value:.4f}")
+    
+    # 判斷是否為定態序列
+    if result[1] < 0.05:
+        print("結論：該序列為定態序列 (拒絕單根假設)")
+    else:
+        print("結論：該序列為非定態序列 (未能拒絕單根假設)")
+
+# 儲存結果
+with open('adf_results_day_一個點.txt', 'w', encoding='utf-8') as f:
+    for var in variables:
+        result = adfuller(df_regression_day_stats_with_returns[var].dropna())
+        f.write(f"變數：{var}\n")
+        f.write(f"p-value：{result[1]:.4f}\n")
+        f.write("結論：" + ("該序列為定態序列" if result[1] < 0.05 else "該序列為非定態序列") + "\n\n")
+
+###########################################################
+
+# 準備迴歸變數
+X_1 = df_regression_day_stats_with_returns[[
+    'Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
+    'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return'
+]]
+y = df_regression_day_stats_with_returns['T Return']
+
+# 加入常數項
+X_1 = sm.add_constant(X_1)
+
+# 執行OLS迴歸
+model = sm.OLS(y, X_1).fit()
+
+###########################################################
+
+# 準備迴歸變數
+X_2 = df_regression_day_stats_with_returns[[
+    'Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
+    'T-1 Return', 'T-4 Return'
+]]
+y = df_regression_day_stats_with_returns['T Return']
+
+# 加入常數項
+X_2 = sm.add_constant(X_2)
+
+# 執行OLS迴歸
+model = sm.OLS(y, X_2).fit()
+
+###########################################################
+
+# 準備迴歸變數
+X_3 = df_regression_day_stats_with_returns[[
+    'Mean', 'Skewness','Kurtosis', 'Fear and Greed Index',
+    'T-1 Return', 'T-2 Return', 'T-4 Return'
+]]
+y = df_regression_day_stats_with_returns['T Return']
+
+# 加入常數項
+X_3 = sm.add_constant(X_3)
+
+# 執行OLS迴歸
+model = sm.OLS(y, X_3).fit()
+
+###########################################################
+
+# 準備迴歸變數
+X_4 = df_regression_day_stats_with_returns[[
+    'Mean', 'Skewness', 'Fear and Greed Index',
+    'T-1 Return', 'T-2 Return', 'T-4 Return'
+]]
+y = df_regression_day_stats_with_returns['T Return']
+
+# 加入常數項
+X_4 = sm.add_constant(X_4)
+
+# 執行OLS迴歸
+model = sm.OLS(y, X_4).fit()
+
+###########################################################
+
+# 印出迴歸結果
+print("迴歸分析結果：")
+print(model.summary())
+
+# 儲存迴歸結果
+with open('regression_results_day_一個點.txt', 'w', encoding='utf-8') as f:
+    f.write(model.summary().as_text())
+
+# 計算每個變數的VIF
+vif_data = pd.DataFrame()
+vif_data["Variable"] = X_4.columns
+vif_data["VIF"] = [variance_inflation_factor(X_4.values, i) for i in range(X_4.shape[1])]
+
+print("\n變異數膨脹因子(VIF)：")
+print(vif_data)
+
+# 儲存VIF結果
+vif_data.to_csv('vif_results_day_一個點.csv', index=False, encoding='utf-8-sig')
+
+
+''' 迴歸分析資料整理_每天_兩個點方法 '''
+# 讀取 instruments.csv
+instruments = pd.read_csv('deribit_data/instruments.csv')
+
+# 建立 DataFrame 存放迴歸資料
+df_regression_day = pd.DataFrame()
+
+# 選擇日期，將 type 為 day, week, quarter, year 的 date 選出，作為 expiration_dates
+expiration_dates = instruments[instruments['type'].isin(['day', 'week', 'quarter', 'year'])]['date'].unique()
+
+# 將 expiration_dates 轉換為 datetime 格式
+expiration_dates = pd.to_datetime(expiration_dates)
+
+# 計算 observation_dates，將 expiration_dates 前一日設定為 observation_dates，存入 observation_dates
+observation_dates = expiration_dates - pd.Timedelta(days=1)
+
+# 將結果轉回字串格式
+observation_dates = observation_dates.strftime('%Y-%m-%d')
+expiration_dates = expiration_dates.strftime('%Y-%m-%d')
+
+# 將 expiration_dates 和 observation_dates 設定為 DataFrame 的欄位
+df_regression_day['observation_dates'] = observation_dates
+df_regression_day['expiration_dates'] = expiration_dates
+
+# 建立儲存統計資料的 list
+stats_data = []
+
+# 對每一組日期進行計算
+for obs_date, exp_date in zip(df_regression_day['observation_dates'], df_regression_day['expiration_dates']):
+    try:
+        # 設定全域變數
+        global observation_date, expiration_date
+        observation_date = obs_date
+        expiration_date = exp_date
+        
+        # 讀取資料並進行 RND 計算
+        call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
+        F = find_F2()
+        get_FTS()
+        df_options_mix = mix_cp_function_v2()
+        smooth_IV = UnivariateSpline_function_v3(df_options_mix, power=4)
+        fit = RND_function(smooth_IV)
+        
+        # GPD 尾端擬合
+        fit, lower_bound, upper_bound = fit_gpd_tails_use_pdf_with_two_points(
+            fit, delta_x, alpha_2L=0.02, alpha_1L=0.05, alpha_1R=0.95, alpha_2R=0.98
+        )
+        
+        # 計算統計量
+        stats = calculate_rnd_statistics(fit, delta_x)
+        
+        # 整理統計資料
+        stats_data.append({
+            'Observation Date': obs_date,
+            'Expiration Date': exp_date,
+            'Mean': stats['mean'],
+            'Std': stats['std'],
+            'Skewness': stats['skewness'],
+            'Kurtosis': stats['kurtosis'],
+            '5% Quantile': stats['quantiles'][0.05],
+            '25% Quantile': stats['quantiles'][0.25],
+            'Median': stats['quantiles'][0.5],
+            '75% Quantile': stats['quantiles'][0.75],
+            '95% Quantile': stats['quantiles'][0.95]
+        })
+        
+        print(f"成功處理：觀察日 {obs_date}，到期日 {exp_date}")
+        
+    except Exception as e:
+        print(f"處理失敗：觀察日 {obs_date}，到期日 {exp_date}")
+        print(f"錯誤訊息：{str(e)}")
+        continue
+
+# 將統計資料轉換為 DataFrame
+df_regression_day_stats = pd.DataFrame(stats_data)
+
+# 將結果儲存為 CSV
+output_filename = 'RND_regression_day_stats_兩個點.csv'
+df_regression_day_stats.to_csv(output_filename, index=False, encoding='utf-8-sig')
+print(f"\n統計資料已儲存至 {output_filename}")
+
+# 顯示統計摘要
+print("\n統計資料摘要：")
+print(df_regression_day_stats.describe())
+
+# 讀取 BTC 價格資料
+df_btcusdt = pd.read_csv('binance_data/BTCUSDT_spot.csv')
+
+# 讀取當中 date 與 close 欄位
+df_btcusdt_close = df_btcusdt[['date', 'close']]
+
+# 將 df_btcusdt_close 的日期欄位轉換為 datetime 格式
+df_btcusdt_close['date'] = pd.to_datetime(df_btcusdt_close['date'])
+
+# 將 df_regression_day_stats 的日期欄位轉換為 datetime 格式
+df_regression_day_stats['Observation Date'] = pd.to_datetime(df_regression_day_stats['Observation Date'])
+df_regression_day_stats['Expiration Date'] = pd.to_datetime(df_regression_day_stats['Expiration Date'])
+
+# 將 df_btcusdt_close 設定 date 為索引
+df_btcusdt_close.set_index('date', inplace=True)
+
+# 顯示可用的日期範圍
+print("價格數據的日期範圍：")
+print(f"起始日期：{df_btcusdt_close.index.min()}")
+print(f"結束日期：{df_btcusdt_close.index.max()}")
+
+# 篩選出在價格數據日期範圍內的觀察資料
+mask = (df_regression_day_stats['Observation Date'] >= df_btcusdt_close.index.min()) & \
+       (df_regression_day_stats['Expiration Date'] <= df_btcusdt_close.index.max())
+df_regression_day_stats_filtered = df_regression_day_stats[mask].copy()
+
+# 計算當期對數報酬率
+df_regression_day_stats_filtered['T Return'] = np.log(
+    df_btcusdt_close.loc[df_regression_day_stats_filtered['Expiration Date']]['close'].values / 
+    df_btcusdt_close.loc[df_regression_day_stats_filtered['Observation Date']]['close'].values
+)
+
+# 計算前期對數報酬率
+# 先將資料按觀察日排序
+df_regression_day_stats_filtered = df_regression_day_stats_filtered.sort_values('Observation Date')
+# 使用 shift 函數來獲取前期的報酬率
+df_regression_day_stats_filtered['T-1 Return'] = df_regression_day_stats_filtered['T Return'].shift(1)
+df_regression_day_stats_filtered['T-2 Return'] = df_regression_day_stats_filtered['T Return'].shift(2)
+df_regression_day_stats_filtered['T-3 Return'] = df_regression_day_stats_filtered['T Return'].shift(3)
+df_regression_day_stats_filtered['T-4 Return'] = df_regression_day_stats_filtered['T Return'].shift(4)
+
+# 去除 NaN 值
+df_regression_day_stats_filtered = df_regression_day_stats_filtered.dropna()
+
+# 顯示結果
+print(f"\n符合日期範圍的資料筆數：{len(df_regression_day_stats_filtered)}")
+print("\n加入對數報酬率後的資料：")
+print(df_regression_day_stats_filtered)
+
+# 將結果儲存為 CSV
+output_filename = 'RND_regression_day_stats_with_returns_兩個點.csv'
+df_regression_day_stats_filtered.to_csv(output_filename, index=False, encoding='utf-8-sig')
+print(f"\n已將結果儲存至 {output_filename}")
+
+
+''' 執行迴歸分析_每天_兩個點方法 '''
+# 讀取資料
+df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_with_returns_兩個點.csv')
+df_fear_greed_index = pd.read_csv('Crypto Fear and Greed Index_2020-2024.csv')
+
+# 將兩個 DataFrame 的日期欄位都轉換為 datetime 格式
+df_regression_day_stats_with_returns['Observation Date'] = pd.to_datetime(df_regression_day_stats_with_returns['Observation Date'])
+df_fear_greed_index['date'] = pd.to_datetime(df_fear_greed_index['date'])
+
+# 將 df_fear_greed_index 的 date 設為索引
+df_fear_greed_index.set_index('date', inplace=True)
+
+# 使用 merge 來匹配日期
+df_regression_day_stats_with_returns = pd.merge(
+    df_regression_day_stats_with_returns,
+    df_fear_greed_index[['value']],
+    left_on='Observation Date',
+    right_index=True,
+    how='left'
+)
+
+# 重命名 value 欄位
+df_regression_day_stats_with_returns.rename(columns={'value': 'Fear and Greed Index'}, inplace=True)
+
+# 檢查是否有缺失值
+missing_values = df_regression_day_stats_with_returns['Fear and Greed Index'].isna().sum()
+print(f"Fear and Greed Index 中的缺失值數量：{missing_values}")
+
+# 將平均值、標準差及 Fear and Greed Index 進行標準化
+df_regression_day_stats_with_returns['Mean'] = (df_regression_day_stats_with_returns['Mean'] - df_regression_day_stats_with_returns['Mean'].mean()) / df_regression_day_stats_with_returns['Mean'].std()
+df_regression_day_stats_with_returns['Std'] = (df_regression_day_stats_with_returns['Std'] - df_regression_day_stats_with_returns['Std'].mean()) / df_regression_day_stats_with_returns['Std'].std()
+df_regression_day_stats_with_returns['Fear and Greed Index'] = (df_regression_day_stats_with_returns['Fear and Greed Index'] - df_regression_day_stats_with_returns['Fear and Greed Index'].mean()) / df_regression_day_stats_with_returns['Fear and Greed Index'].std()
+
+# 針對所有變數進行 ADF 檢定
+variables = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
+            'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
+
+print("ADF 檢定結果：")
+print("-" * 50)
+for var in variables:
+    result = adfuller(df_regression_week_stats_with_returns[var].dropna())
+    print(f"\n變數：{var}")
+    print(f"ADF 統計量：{result[0]:.4f}")
+    print(f"p-value：{result[1]:.4f}")
+    print("臨界值：")
+    for key, value in result[4].items():
+        print(f"\t{key}: {value:.4f}")
+    
+    # 判斷是否為定態序列
+    if result[1] < 0.05:
+        print("結論：該序列為定態序列 (拒絕單根假設)")
+    else:
+        print("結論：該序列為非定態序列 (未能拒絕單根假設)")
+
+# 儲存結果
+with open('adf_results_day_兩個點.txt', 'w', encoding='utf-8') as f:
+    for var in variables:
+        result = adfuller(df_regression_day_stats_with_returns[var].dropna())
+        f.write(f"變數：{var}\n")
+        f.write(f"p-value：{result[1]:.4f}\n")
+        f.write("結論：" + ("該序列為定態序列" if result[1] < 0.05 else "該序列為非定態序列") + "\n\n")
+
+
+###########################################################
+
+# 準備迴歸變數
+X_1 = df_regression_day_stats_with_returns[[
+    'Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
+    'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return'
+]]
+y = df_regression_day_stats_with_returns['T Return']
+
+# 加入常數項
+X_1 = sm.add_constant(X_1)
+
+# 執行OLS迴歸
+model = sm.OLS(y, X_1).fit()
+
+###########################################################
+
+# 準備迴歸變數
+X_2 = df_regression_day_stats_with_returns[[
+    'Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
+    'T-1 Return', 'T-2 Return', 'T-4 Return'
+]]
+y = df_regression_day_stats_with_returns['T Return']
+
+# 加入常數項
+X_2 = sm.add_constant(X_2)
+
+# 執行OLS迴歸
+model = sm.OLS(y, X_2).fit()
+
+###########################################################
+
+# 準備迴歸變數
+X_3 = df_regression_day_stats_with_returns[[
+    'Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
+    'T-1 Return', 'T-4 Return'
+]]
+y = df_regression_day_stats_with_returns['T Return']
+
+# 加入常數項
+X_3 = sm.add_constant(X_3)
+
+# 執行OLS迴歸
+model = sm.OLS(y, X_3).fit()
+
+###########################################################
+
+# 準備迴歸變數
+X_4 = df_regression_day_stats_with_returns[[
+    'Mean', 'Std', 'Skewness', 'Fear and Greed Index',
+    'T-1 Return', 'T-4 Return'
+]]
+y = df_regression_day_stats_with_returns['T Return']
+
+# 加入常數項
+X_4 = sm.add_constant(X_4)
+
+# 執行OLS迴歸
+model = sm.OLS(y, X_4).fit()
+
+###########################################################
+
+# 準備迴歸變數
+X_5 = df_regression_day_stats_with_returns[[
+    'Mean', 'Skewness', 'Fear and Greed Index',
+    'T-1 Return', 'T-4 Return'
+]]
+y = df_regression_day_stats_with_returns['T Return']
+
+# 加入常數項
+X_5 = sm.add_constant(X_5)
+
+# 執行OLS迴歸
+model = sm.OLS(y, X_5).fit()
+
+###########################################################
+
+# 印出迴歸結果
+print("迴歸分析結果：")
+print(model.summary())
+
+# 儲存迴歸結果
+with open('regression_results_day_兩個點.txt', 'w', encoding='utf-8') as f:
+    f.write(model.summary().as_text())
+
+# 計算每個變數的VIF
+vif_data = pd.DataFrame()
+vif_data["Variable"] = X_1.columns
+vif_data["VIF"] = [variance_inflation_factor(X_1.values, i) for i in range(X_1.shape[1])]
+
+print("\n變異數膨脹因子(VIF)：")
+print(vif_data)
+
+# 儲存VIF結果
+vif_data.to_csv('vif_results_day_兩個點.csv', index=False, encoding='utf-8-sig')
+
+
+''' 迴歸分析資料整理_每週_一個點方法 '''
+# 讀取 instruments.csv
+instruments = pd.read_csv('deribit_data/instruments.csv')
+
+# 建立 DataFrame 存放迴歸資料
+df_regression_week = pd.DataFrame()
+
+# 選擇日期，將 type 為 week, quarter, year 的 date 選出，作為 expiration_dates
+expiration_dates = instruments[instruments['type'].isin(['week', 'quarter', 'year'])]['date'].unique()
+
+# 將 expiration_dates 轉換為 datetime 格式
+expiration_dates = pd.to_datetime(expiration_dates)
+
+# 計算 observation_dates，將 expiration_dates 前一日設定為 observation_dates，存入 observation_dates
+observation_dates = expiration_dates - pd.Timedelta(days=7)
+
+# 將結果轉回字串格式
+observation_dates = observation_dates.strftime('%Y-%m-%d')
+expiration_dates = expiration_dates.strftime('%Y-%m-%d')
+
+# 將 expiration_dates 和 observation_dates 設定為 DataFrame 的欄位
+df_regression_week['observation_dates'] = observation_dates
+df_regression_week['expiration_dates'] = expiration_dates
+
+# 建立儲存統計資料的 list
+stats_data = []
+
+# 對每一組日期進行計算
+for obs_date, exp_date in zip(df_regression_week['observation_dates'], df_regression_week['expiration_dates']):
+    try:
+        # 設定全域變數
+        global observation_date, expiration_date
+        observation_date = obs_date
+        expiration_date = exp_date
+        
+        # 讀取資料並進行 RND 計算
+        call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
+        F = find_F2()
+        get_FTS()
+        df_options_mix = mix_cp_function_v2()
+        smooth_IV = UnivariateSpline_function_v3(df_options_mix, power=4)
+        fit = RND_function(smooth_IV)
+        
+        # GPD 尾端擬合
+        fit, lower_bound, upper_bound = fit_gpd_tails_use_slope_and_cdf_with_one_point(
+            fit, initial_i, delta_x, alpha_1L=0.05, alpha_1R=0.95
+        )
+        
+        # 計算統計量
+        stats = calculate_rnd_statistics(fit, delta_x)
+        
+        # 整理統計資料
+        stats_data.append({
+            'Observation Date': obs_date,
+            'Expiration Date': exp_date,
+            'Mean': stats['mean'],
+            'Std': stats['std'],
+            'Skewness': stats['skewness'],
+            'Kurtosis': stats['kurtosis'],
+            '5% Quantile': stats['quantiles'][0.05],
+            '25% Quantile': stats['quantiles'][0.25],
+            'Median': stats['quantiles'][0.5],
+            '75% Quantile': stats['quantiles'][0.75],
+            '95% Quantile': stats['quantiles'][0.95]
+        })
+        
+        print(f"成功處理：觀察日 {obs_date}，到期日 {exp_date}")
+        
+    except Exception as e:
+        print(f"處理失敗：觀察日 {obs_date}，到期日 {exp_date}")
+        print(f"錯誤訊息：{str(e)}")
+        continue
+
+# 將統計資料轉換為 DataFrame
+df_regression_week_stats = pd.DataFrame(stats_data)
+
+# 將結果儲存為 CSV
+output_filename = 'RND_regression_week_stats_一個點.csv'
+df_regression_week_stats.to_csv(output_filename, index=False, encoding='utf-8-sig')
+print(f"\n統計資料已儲存至 {output_filename}")
+
+# 顯示統計摘要
+print("\n統計資料摘要：")
+print(df_regression_week_stats.describe())
+
+# 讀取 BTC 價格資料
+df_btcusdt = pd.read_csv('binance_data/BTCUSDT_spot.csv')
+
+# 讀取當中 date 與 close 欄位
+df_btcusdt_close = df_btcusdt[['date', 'close']]
+
+# 將 df_btcusdt_close 的日期欄位轉換為 datetime 格式
+df_btcusdt_close['date'] = pd.to_datetime(df_btcusdt_close['date'])
+
+# 將 df_regression_day_stats 的日期欄位轉換為 datetime 格式
+df_regression_week_stats['Observation Date'] = pd.to_datetime(df_regression_week_stats['Observation Date'])
+df_regression_week_stats['Expiration Date'] = pd.to_datetime(df_regression_week_stats['Expiration Date'])
+
+# 將 df_btcusdt_close 設定 date 為索引
+df_btcusdt_close.set_index('date', inplace=True)
+
+# 顯示可用的日期範圍
+print("價格數據的日期範圍：")
+print(f"起始日期：{df_btcusdt_close.index.min()}")
+print(f"結束日期：{df_btcusdt_close.index.max()}")
+
+# 篩選出在價格數據日期範圍內的觀察資料
+mask = (df_regression_week_stats['Observation Date'] >= df_btcusdt_close.index.min()) & \
+       (df_regression_week_stats['Expiration Date'] <= df_btcusdt_close.index.max())
+df_regression_week_stats_filtered = df_regression_week_stats[mask].copy()
+
+# 計算當期對數報酬率
+df_regression_week_stats_filtered['T Return'] = np.log(
+    df_btcusdt_close.loc[df_regression_week_stats_filtered['Expiration Date']]['close'].values / 
+    df_btcusdt_close.loc[df_regression_week_stats_filtered['Observation Date']]['close'].values
+)
+
+# 計算前期對數報酬率
+# 先將資料按觀察日排序
+df_regression_week_stats_filtered = df_regression_week_stats_filtered.sort_values('Observation Date')
+# 使用 shift 函數來獲取前期的報酬率
+df_regression_week_stats_filtered['T-1 Return'] = df_regression_week_stats_filtered['T Return'].shift(7)
+df_regression_week_stats_filtered['T-2 Return'] = df_regression_week_stats_filtered['T Return'].shift(14)
+df_regression_week_stats_filtered['T-3 Return'] = df_regression_week_stats_filtered['T Return'].shift(21)
+df_regression_week_stats_filtered['T-4 Return'] = df_regression_week_stats_filtered['T Return'].shift(28)
+
+# 去除 NaN 值
+df_regression_week_stats_filtered = df_regression_week_stats_filtered.dropna()
+
+# 顯示結果
+print(f"\n符合日期範圍的資料筆數：{len(df_regression_week_stats_filtered)}")
+print("\n加入對數報酬率後的資料：")
+print(df_regression_week_stats_filtered)
+
+# 將結果儲存為 CSV
+output_filename = 'RND_regression_week_stats_with_returns_一個點.csv'
+df_regression_week_stats_filtered.to_csv(output_filename, index=False, encoding='utf-8-sig')
+print(f"\n已將結果儲存至 {output_filename}")
+
+
+''' 執行迴歸分析_每週_一個點方法 '''
+# 讀取資料
+df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_with_returns_一個點.csv')
+df_fear_greed_index = pd.read_csv('Crypto Fear and Greed Index_2020-2024.csv')
+
+# 將兩個 DataFrame 的日期欄位都轉換為 datetime 格式
+df_regression_week_stats_with_returns['Observation Date'] = pd.to_datetime(df_regression_week_stats_with_returns['Observation Date'])
+df_fear_greed_index['date'] = pd.to_datetime(df_fear_greed_index['date'])
+
+# 將 df_fear_greed_index 的 date 設為索引
+df_fear_greed_index.set_index('date', inplace=True)
+
+# 使用 merge 來匹配日期
+df_regression_week_stats_with_returns = pd.merge(
+    df_regression_week_stats_with_returns,
+    df_fear_greed_index[['value']],
+    left_on='Observation Date',
+    right_index=True,
+    how='left'
+)
+
+# 重命名 value 欄位
+df_regression_week_stats_with_returns.rename(columns={'value': 'Fear and Greed Index'}, inplace=True)
+
+# 檢查是否有缺失值
+missing_values = df_regression_week_stats_with_returns['Fear and Greed Index'].isna().sum()
+print(f"Fear and Greed Index 中的缺失值數量：{missing_values}")
+
+# 將平均值、標準差及 Fear and Greed Index 進行標準化
+df_regression_week_stats_with_returns['Mean'] = (df_regression_week_stats_with_returns['Mean'] - df_regression_week_stats_with_returns['Mean'].mean()) / df_regression_week_stats_with_returns['Mean'].std()
+df_regression_week_stats_with_returns['Std'] = (df_regression_week_stats_with_returns['Std'] - df_regression_week_stats_with_returns['Std'].mean()) / df_regression_week_stats_with_returns['Std'].std()
+df_regression_week_stats_with_returns['Fear and Greed Index'] = (df_regression_week_stats_with_returns['Fear and Greed Index'] - df_regression_week_stats_with_returns['Fear and Greed Index'].mean()) / df_regression_week_stats_with_returns['Fear and Greed Index'].std()
+
+# 針對所有變數進行 ADF 檢定
+variables = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
+            'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
+
+print("ADF 檢定結果：")
+print("-" * 50)
+for var in variables:
+    result = adfuller(df_regression_week_stats_with_returns[var].dropna())
+    print(f"\n變數：{var}")
+    print(f"ADF 統計量：{result[0]:.4f}")
+    print(f"p-value：{result[1]:.4f}")
+    print("臨界值：")
+    for key, value in result[4].items():
+        print(f"\t{key}: {value:.4f}")
+    
+    # 判斷是否為定態序列
+    if result[1] < 0.05:
+        print("結論：該序列為定態序列 (拒絕單根假設)")
+    else:
+        print("結論：該序列為非定態序列 (未能拒絕單根假設)")
+
+# 儲存結果
+with open('adf_results_week_一個點.txt', 'w', encoding='utf-8') as f:
+    for var in variables:
+        result = adfuller(df_regression_week_stats_with_returns[var].dropna())
+        f.write(f"變數：{var}\n")
+        f.write(f"p-value：{result[1]:.4f}\n")
+        f.write("結論：" + ("該序列為定態序列" if result[1] < 0.05 else "該序列為非定態序列") + "\n\n")
+
+###########################################################
+
+# 準備迴歸變數
+X_1 = df_regression_week_stats_with_returns[[
+    'Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
+    'T-1 Return','T-2 Return','T-3 Return','T-4 Return'
+]]
+y = df_regression_week_stats_with_returns['T Return']
+
+# 加入常數項
+X_1 = sm.add_constant(X_1)
+
+# 執行OLS迴歸
+model = sm.OLS(y, X_1).fit()
+
+###########################################################
+
+# 準備迴歸變數
+X_2 = df_regression_week_stats_with_returns[[
+    'Mean', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
+    'T-1 Return','T-2 Return','T-3 Return','T-4 Return'
+]]
+y = df_regression_week_stats_with_returns['T Return']
+
+# 加入常數項
+X_2 = sm.add_constant(X_2)
+
+# 執行OLS迴歸
+model = sm.OLS(y, X_2).fit()
+
+###########################################################
+
+# 準備迴歸變數
+X_3 = df_regression_week_stats_with_returns[[
+    'Mean', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
+    'T-1 Return','T-2 Return'
+]]
+y = df_regression_week_stats_with_returns['T Return']
+
+# 加入常數項
+X_3 = sm.add_constant(X_3)
+
+# 執行OLS迴歸
+model = sm.OLS(y, X_3).fit()
+
+###########################################################
+
+# 準備迴歸變數
+X_4 = df_regression_week_stats_with_returns[[
+    'Mean', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
+    'T-1 Return'
+]]
+y = df_regression_week_stats_with_returns['T Return']
+
+# 加入常數項
+X_4 = sm.add_constant(X_4)
+
+# 執行OLS迴歸
+model = sm.OLS(y, X_4).fit()
+
+###########################################################
+
+# 準備迴歸變數
+X_5 = df_regression_week_stats_with_returns[[
+    'Mean', 'Kurtosis', 'Fear and Greed Index',
+    'T-1 Return'
+]]
+y = df_regression_week_stats_with_returns['T Return']
+
+# 加入常數項
+X_5 = sm.add_constant(X_5)
+
+# 執行OLS迴歸
+model = sm.OLS(y, X_5).fit()
+
+###########################################################
+
+# 印出迴歸結果
+print("迴歸分析結果：")
+print(model.summary())
+
+# 儲存迴歸結果
+with open('regression_results_week_一個點.txt', 'w', encoding='utf-8') as f:
+    f.write(model.summary().as_text())
+
+# 計算每個變數的VIF
+vif_data = pd.DataFrame()
+vif_data["Variable"] = X_1.columns
+vif_data["VIF"] = [variance_inflation_factor(X_1.values, i) for i in range(X_1.shape[1])]
+
+print("\n變異數膨脹因子(VIF)：")
+print(vif_data)
+
+# 儲存VIF結果
+vif_data.to_csv('vif_results_week_一個點.csv', index=False, encoding='utf-8-sig')
+
+
+''' 迴歸分析資料整理_每週_兩個點方法 '''
+# 讀取 instruments.csv
+instruments = pd.read_csv('deribit_data/instruments.csv')
+
+# 建立 DataFrame 存放迴歸資料
+df_regression_week = pd.DataFrame()
+
+# 選擇日期，將 type 為 week, quarter, year 的 date 選出，作為 expiration_dates
+expiration_dates = instruments[instruments['type'].isin(['week', 'quarter', 'year'])]['date'].unique()
+
+# 將 expiration_dates 轉換為 datetime 格式
+expiration_dates = pd.to_datetime(expiration_dates)
+
+# 計算 observation_dates，將 expiration_dates 前一日設定為 observation_dates，存入 observation_dates
+observation_dates = expiration_dates - pd.Timedelta(days=7)
+
+# 將結果轉回字串格式
+observation_dates = observation_dates.strftime('%Y-%m-%d')
+expiration_dates = expiration_dates.strftime('%Y-%m-%d')
+
+# 將 expiration_dates 和 observation_dates 設定為 DataFrame 的欄位
+df_regression_week['observation_dates'] = observation_dates
+df_regression_week['expiration_dates'] = expiration_dates
+
+# 建立儲存統計資料的 list
+stats_data = []
+
+# 對每一組日期進行計算
+for obs_date, exp_date in zip(df_regression_week['observation_dates'], df_regression_week['expiration_dates']):
+    try:
+        # 設定全域變數
+        global observation_date, expiration_date
+        observation_date = obs_date
+        expiration_date = exp_date
+        
+        # 讀取資料並進行 RND 計算
+        call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
+        F = find_F2()
+        get_FTS()
+        df_options_mix = mix_cp_function_v2()
+        smooth_IV = UnivariateSpline_function_v3(df_options_mix, power=4)
+        fit = RND_function(smooth_IV)
+        
+        # GPD 尾端擬合
+        fit, lower_bound, upper_bound = fit_gpd_tails_use_pdf_with_two_points(
+            fit, delta_x, alpha_2L=0.02, alpha_1L=0.05, alpha_1R=0.95, alpha_2R=0.98
+        )
+        
+        # 計算統計量
+        stats = calculate_rnd_statistics(fit, delta_x)
+        
+        # 整理統計資料
+        stats_data.append({
+            'Observation Date': obs_date,
+            'Expiration Date': exp_date,
+            'Mean': stats['mean'],
+            'Std': stats['std'],
+            'Skewness': stats['skewness'],
+            'Kurtosis': stats['kurtosis'],
+            '5% Quantile': stats['quantiles'][0.05],
+            '25% Quantile': stats['quantiles'][0.25],
+            'Median': stats['quantiles'][0.5],
+            '75% Quantile': stats['quantiles'][0.75],
+            '95% Quantile': stats['quantiles'][0.95]
+        })
+        
+        print(f"成功處理：觀察日 {obs_date}，到期日 {exp_date}")
+        
+    except Exception as e:
+        print(f"處理失敗：觀察日 {obs_date}，到期日 {exp_date}")
+        print(f"錯誤訊息：{str(e)}")
+        continue
+
+# 將統計資料轉換為 DataFrame
+df_regression_week_stats = pd.DataFrame(stats_data)
+
+# 將結果儲存為 CSV
+output_filename = 'RND_regression_week_stats_兩個點.csv'
+df_regression_week_stats.to_csv(output_filename, index=False, encoding='utf-8-sig')
+print(f"\n統計資料已儲存至 {output_filename}")
+
+# 顯示統計摘要
+print("\n統計資料摘要：")
+print(df_regression_week_stats.describe())
+
+# 讀取 BTC 價格資料
+df_btcusdt = pd.read_csv('binance_data/BTCUSDT_spot.csv')
+
+# 讀取當中 date 與 close 欄位
+df_btcusdt_close = df_btcusdt[['date', 'close']]
+
+# 將 df_btcusdt_close 的日期欄位轉換為 datetime 格式
+df_btcusdt_close['date'] = pd.to_datetime(df_btcusdt_close['date'])
+
+# 將 df_regression_day_stats 的日期欄位轉換為 datetime 格式
+df_regression_week_stats['Observation Date'] = pd.to_datetime(df_regression_week_stats['Observation Date'])
+df_regression_week_stats['Expiration Date'] = pd.to_datetime(df_regression_week_stats['Expiration Date'])
+
+# 將 df_btcusdt_close 設定 date 為索引
+df_btcusdt_close.set_index('date', inplace=True)
+
+# 顯示可用的日期範圍
+print("價格數據的日期範圍：")
+print(f"起始日期：{df_btcusdt_close.index.min()}")
+print(f"結束日期：{df_btcusdt_close.index.max()}")
+
+# 篩選出在價格數據日期範圍內的觀察資料
+mask = (df_regression_week_stats['Observation Date'] >= df_btcusdt_close.index.min()) & \
+       (df_regression_week_stats['Expiration Date'] <= df_btcusdt_close.index.max())
+df_regression_week_stats_filtered = df_regression_week_stats[mask].copy()
+
+# 計算當期對數報酬率
+df_regression_week_stats_filtered['T Return'] = np.log(
+    df_btcusdt_close.loc[df_regression_week_stats_filtered['Expiration Date']]['close'].values / 
+    df_btcusdt_close.loc[df_regression_week_stats_filtered['Observation Date']]['close'].values
+)
+
+# 計算前期對數報酬率
+# 先將資料按觀察日排序
+df_regression_week_stats_filtered = df_regression_week_stats_filtered.sort_values('Observation Date')
+# 使用 shift 函數來獲取前期的報酬率
+df_regression_week_stats_filtered['T-1 Return'] = df_regression_week_stats_filtered['T Return'].shift(7)
+df_regression_week_stats_filtered['T-2 Return'] = df_regression_week_stats_filtered['T Return'].shift(14)
+df_regression_week_stats_filtered['T-3 Return'] = df_regression_week_stats_filtered['T Return'].shift(21)
+df_regression_week_stats_filtered['T-4 Return'] = df_regression_week_stats_filtered['T Return'].shift(28)
+
+# 去除 NaN 值
+df_regression_week_stats_filtered = df_regression_week_stats_filtered.dropna()
+
+# 顯示結果
+print(f"\n符合日期範圍的資料筆數：{len(df_regression_week_stats_filtered)}")
+print("\n加入對數報酬率後的資料：")
+print(df_regression_week_stats_filtered)
+
+# 將結果儲存為 CSV
+output_filename = 'RND_regression_week_stats_with_returns_兩個點.csv'
+df_regression_week_stats_filtered.to_csv(output_filename, index=False, encoding='utf-8-sig')
+print(f"\n已將結果儲存至 {output_filename}")
+
+
+''' 執行迴歸分析_每週_兩個點方法 '''
+# 讀取資料
+df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_with_returns_兩個點.csv')
+df_fear_greed_index = pd.read_csv('Crypto Fear and Greed Index_2020-2024.csv')
+
+# 將兩個 DataFrame 的日期欄位都轉換為 datetime 格式
+df_regression_week_stats_with_returns['Observation Date'] = pd.to_datetime(df_regression_week_stats_with_returns['Observation Date'])
+df_fear_greed_index['date'] = pd.to_datetime(df_fear_greed_index['date'])
+
+# 將 df_fear_greed_index 的 date 設為索引
+df_fear_greed_index.set_index('date', inplace=True)
+
+# 使用 merge 來匹配日期
+df_regression_week_stats_with_returns = pd.merge(
+    df_regression_week_stats_with_returns,
+    df_fear_greed_index[['value']],
+    left_on='Observation Date',
+    right_index=True,
+    how='left'
+)
+
+# 重命名 value 欄位
+df_regression_week_stats_with_returns.rename(columns={'value': 'Fear and Greed Index'}, inplace=True)
+
+# 檢查是否有缺失值
+missing_values = df_regression_week_stats_with_returns['Fear and Greed Index'].isna().sum()
+print(f"Fear and Greed Index 中的缺失值數量：{missing_values}")
+
+# 將平均值、標準差及 Fear and Greed Index 進行標準化
+df_regression_week_stats_with_returns['Mean'] = (df_regression_week_stats_with_returns['Mean'] - df_regression_week_stats_with_returns['Mean'].mean()) / df_regression_week_stats_with_returns['Mean'].std()
+df_regression_week_stats_with_returns['Std'] = (df_regression_week_stats_with_returns['Std'] - df_regression_week_stats_with_returns['Std'].mean()) / df_regression_week_stats_with_returns['Std'].std()
+df_regression_week_stats_with_returns['Fear and Greed Index'] = (df_regression_week_stats_with_returns['Fear and Greed Index'] - df_regression_week_stats_with_returns['Fear and Greed Index'].mean()) / df_regression_week_stats_with_returns['Fear and Greed Index'].std()
+
+# 針對所有變數進行 ADF 檢定
+variables = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
+            'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
+
+print("ADF 檢定結果：")
+print("-" * 50)
+for var in variables:
+    result = adfuller(df_regression_week_stats_with_returns[var].dropna())
+    print(f"\n變數：{var}")
+    print(f"ADF 統計量：{result[0]:.4f}")
+    print(f"p-value：{result[1]:.4f}")
+    print("臨界值：")
+    for key, value in result[4].items():
+        print(f"\t{key}: {value:.4f}")
+    
+    # 判斷是否為定態序列
+    if result[1] < 0.05:
+        print("結論：該序列為定態序列 (拒絕單根假設)")
+    else:
+        print("結論：該序列為非定態序列 (未能拒絕單根假設)")
+
+# 儲存結果
+with open('adf_results_week_兩個點.txt', 'w', encoding='utf-8') as f:
+    for var in variables:
+        result = adfuller(df_regression_week_stats_with_returns[var].dropna())
+        f.write(f"變數：{var}\n")
+        f.write(f"p-value：{result[1]:.4f}\n")
+        f.write("結論：" + ("該序列為定態序列" if result[1] < 0.05 else "該序列為非定態序列") + "\n\n")
+
+###########################################################
+
+# 準備迴歸變數
+X_1 = df_regression_week_stats_with_returns[[
+    'Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
+    'T-1 Return','T-2 Return','T-3 Return','T-4 Return'
+]]
+y = df_regression_week_stats_with_returns['T Return']
+
+# 加入常數項
+X_1 = sm.add_constant(X_1)
+
+# 執行OLS迴歸
+model = sm.OLS(y, X_1).fit()
+
+###########################################################
+
+# 準備迴歸變數
+X_2 = df_regression_week_stats_with_returns[[
+    'Mean', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
+    'T-1 Return','T-2 Return','T-3 Return','T-4 Return'
+]]
+y = df_regression_week_stats_with_returns['T Return']
+
+# 加入常數項
+X_2 = sm.add_constant(X_2)
+
+# 執行OLS迴歸
+model = sm.OLS(y, X_2).fit()
+
+###########################################################
+
+# 準備迴歸變數
+X_3 = df_regression_week_stats_with_returns[[
+    'Mean', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
+    'T-1 Return','T-2 Return'
+]]
+y = df_regression_week_stats_with_returns['T Return']
+
+# 加入常數項
+X_3 = sm.add_constant(X_3)
+
+# 執行OLS迴歸
+model = sm.OLS(y, X_3).fit()
+
+###########################################################
+
+# 準備迴歸變數
+X_4 = df_regression_week_stats_with_returns[[
+    'Mean', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
+    'T-1 Return'
+]]
+y = df_regression_week_stats_with_returns['T Return']
+
+# 加入常數項
+X_4 = sm.add_constant(X_4)
+
+# 執行OLS迴歸
+model = sm.OLS(y, X_4).fit()
+
+###########################################################
+
+# 準備迴歸變數
+X_5 = df_regression_week_stats_with_returns[[
+    'Mean', 'Kurtosis', 'Fear and Greed Index',
+    'T-1 Return'
+]]
+y = df_regression_week_stats_with_returns['T Return']
+
+# 加入常數項
+X_5 = sm.add_constant(X_5)
+
+# 執行OLS迴歸
+model = sm.OLS(y, X_5).fit()
+
+###########################################################
+
+# 印出迴歸結果
+print("迴歸分析結果：")
+print(model.summary())
+
+# 儲存迴歸結果
+with open('regression_results_week_兩個點.txt', 'w', encoding='utf-8') as f:
+    f.write(model.summary().as_text())
+
+# 計算VIF
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+# 計算每個變數的VIF
+vif_data = pd.DataFrame()
+vif_data["Variable"] = X_1.columns
+vif_data["VIF"] = [variance_inflation_factor(X_1.values, i) for i in range(X_1.shape[1])]
+
+print("\n變異數膨脹因子(VIF)：")
+print(vif_data)
+
+# 儲存VIF結果
+vif_data.to_csv('vif_results_week_兩個點.csv', index=False, encoding='utf-8-sig')
 
 
 
@@ -357,7 +1538,6 @@ def find_F2():
     F_values_c = [find_F1(K, "C") for K in result_c.index]
     F_values_p =  [find_F1(K, "P") for K in result_p.index]
     F = np.array(F_values_c+F_values_p).mean()
-    #print(np.array(F_values_c+F_values_p))
     
     return F
 
@@ -374,6 +1554,7 @@ def get_FTS():
 # 定義混合買權、賣權隱含波動率函數
 def mix_cp_function_v2():
     global observation_date, expiration_date, call_iv, put_iv, call_price, put_price, df_idx
+    
     basicinfo = get_FTS()
     F = basicinfo["F"]
     T = basicinfo["T"]
@@ -408,25 +1589,15 @@ def UnivariateSpline_function_v2(mix_cp, power=4, s=None, w=None):
     S = basicinfo["S"]
     spline = UnivariateSpline(mix_cp.index, mix_cp["mixIV"], k=power, s=s, w=w)
     
-    min_K = 0 #int(min(oneday2["K"]) * 0.8) # 測試!!!!!!!!!!
-    max_K = int(max(mix_cp.index)*1.2)#max(F*2//1000*1000, max(mix_cp.index)) +1
+    min_K = 0
+    max_K = int(max(mix_cp.index)*1.2)
     dK = delta_x
     K_fine = np.arange(min_K, max_K, dK, dtype=np.float64)
     Vol_fine = spline(K_fine)
 
     smooth_IV = pd.DataFrame([K_fine, Vol_fine], index=["K", "mixIV"]).T
-    """
-    try:    # IV左邊有往下
-        left_US = smooth_IV.query(f"K < {mix_cp.index[0]}")
-        idx = left_US[left_US["mixIV"].diff() > 0].index[-1]
-        smooth_IV = smooth_IV.loc[idx:].reset_index(drop=True)
-    except: # IV左邊沒有往下
-        pass
-    """
     smooth_IV["C"] = call.future(F, smooth_IV["K"], T, smooth_IV["mixIV"], S)
-    
-    #smooth_IV = add_other_info(date, oneday2, smooth_IV, call_strike, df_idxprice, df_futuresprice, expiration_date, IVname)
-    #smooth_IV.index = smooth_IV["K"].values
+
     return smooth_IV
 
 
@@ -603,80 +1774,6 @@ def plot_fitted_curves(df_options_mix, fit, observation_date, expiration_date):
     plt.show()
 
 
-'''
-# 定義擬合 GPD 的函數，選 1 個點，僅比較斜率，不要用這個方法了
-def fit_gpd_tails_use_slope_with_one_point(fit, initial_i, delta_x, alpha1L=0.05, alpha1R=0.95):
-    # 設定接合位置
-    left_tail_point = alpha1L
-    right_tail_point = alpha1R
-
-    # Right-tail
-    loc = fit.iloc[(fit['left_cumulative'] - right_tail_point).abs().argsort()[:1]]
-    right_end = loc['strike_price'].values[0]
-    missing_tail = loc['right_cumulative'].values[0]
-    right_sigma = missing_tail / loc['RND_density'].values[0]
-    max_strike_index = fit['strike_price'].idxmax()
-    end_density = fit.loc[max_strike_index, 'RND_density']
-
-    i = initial_i
-    while True:
-        loc_slope = (-loc['RND_density'].values[0] + fit.iloc[fit.index.get_loc(loc.index[0])+i]['RND_density']) / (i * delta_x)
-        if loc_slope < 0:
-            break
-        else:
-            i += 1
-
-    def right_func(x):
-        xi = x[0]
-        error = ((missing_tail * gpd.pdf(loc['strike_price'].values[0] + delta_x, xi, loc=loc['strike_price'].values[0], scale=right_sigma) - loc['RND_density'].values[0]) / delta_x - loc_slope)
-        return (1e12 * error**2)
-
-    right_fit = minimize(right_func, [-2], bounds=[(-np.inf, np.inf)], method='L-BFGS-B')
-    right_xi = right_fit.x[0]
-
-    fit = pd.merge(fit, pd.DataFrame({'strike_price': np.arange(fit['strike_price'].max() + delta_x, F*2, delta_x)}), how='outer')
-    fit['right_extra_density'] = missing_tail * gpd.pdf(fit['strike_price'], right_xi, loc=loc['strike_price'].values[0], scale=right_sigma)
-    fit['full_density'] = np.where(fit['strike_price'] > loc['strike_price'].values[0], fit['right_extra_density'], fit['RND_density'])
-
-    # Left-tail
-    fit['reverse_strike'] = fit['strike_price'].max() - fit['strike_price']
-    loc = fit.iloc[(fit['left_cumulative'] - left_tail_point).abs().argsort()[:1]]
-    left_end = loc['strike_price'].values[0]
-    missing_tail = loc['left_cumulative'].values[0]
-    left_sigma = missing_tail / loc['RND_density'].values[0]
-
-    i = initial_i
-    while True:
-        loc_slope = (-loc['RND_density'].values[0] + fit.iloc[fit.index.get_loc(loc.index[0])-i]['RND_density']) / (i * delta_x)
-        if loc_slope < 0:
-            break
-        else:
-            i += 1
-
-    def left_func(x):
-        xi = x[0]
-        error = (missing_tail * gpd.pdf(loc['reverse_strike'].values[0] + delta_x, xi, loc=loc['reverse_strike'].values[0], scale=left_sigma) - loc['RND_density'].values[0]) / delta_x - loc_slope
-        return (1e12 * error**2)
-
-    left_fit = minimize(left_func, [-2], bounds=[(-np.inf, np.inf)], method='L-BFGS-B')
-    left_xi = left_fit.x[0]
-
-    fit = pd.merge(fit, pd.DataFrame({'strike_price': np.arange(0, fit['strike_price'].min() - delta_x, delta_x)}), how='outer')
-    fit['reverse_strike'] = fit['strike_price'].max() - fit['strike_price']
-    fit['left_extra_density'] = missing_tail * gpd.pdf(fit['reverse_strike'], left_xi, loc=loc['reverse_strike'].values[0], scale=left_sigma)
-    fit['full_density'] = np.where(fit['strike_price'] < loc['strike_price'].values[0], fit['left_extra_density'], fit['full_density'])
-
-    fit['full_density_cumulative'] = fit['full_density'].cumsum() * delta_x
-
-    # 找到 CDF 的 Lower Bound and Upper Bound
-    lower_bound = left_end
-    upper_bound = right_end
-
-    return fit, lower_bound, upper_bound
-'''
-
-
-
 # 定義擬合 GPD 的函數，選 1 個點，比較斜率與 CDF
 def fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alpha_1L=0.05, alpha_1R=0.95):
     # 設定接合位置
@@ -816,7 +1913,7 @@ def fit_gpd_tails_use_pdf_with_two_points(fit, delta_x, alpha_2L=0.02, alpha_1L=
     fit['full_density_cumulative'] = fit['full_density'].cumsum() * delta_x
 
     lower_bound = fit.loc[(fit['full_density_cumulative'] - alpha_1L).abs().idxmin(), 'strike_price']
-    upper_bound = fit.loc[(fit['full_density_cumulative'] - alpha_2R).abs().idxmin(), 'strike_price']
+    upper_bound = fit.loc[(fit['full_density_cumulative'] - alpha_1R).abs().idxmin(), 'strike_price']
 
     return fit, lower_bound, upper_bound
 

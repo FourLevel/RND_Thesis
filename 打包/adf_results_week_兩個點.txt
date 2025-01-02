@@ -1,0 +1,40 @@
+變數：T Return
+p-value：0.0000
+結論：該序列為定態序列
+
+變數：Mean
+p-value：0.8966
+結論：該序列為非定態序列
+
+變數：Std
+p-value：0.1965
+結論：該序列為非定態序列
+
+變數：Skewness
+p-value：0.0010
+結論：該序列為定態序列
+
+變數：Kurtosis
+p-value：0.0000
+結論：該序列為定態序列
+
+變數：Fear and Greed Index
+p-value：0.6067
+結論：該序列為非定態序列
+
+變數：T-1 Return
+p-value：0.0000
+結論：該序列為定態序列
+
+變數：T-2 Return
+p-value：0.0000
+結論：該序列為定態序列
+
+變數：T-3 Return
+p-value：0.0000
+結論：該序列為定態序列
+
+變數：T-4 Return
+p-value：0.0000
+結論：該序列為定態序列
+
