@@ -1162,7 +1162,10 @@ instruments = pd.read_csv('deribit_data/instruments.csv')
 df_regression_week = pd.DataFrame()
 
 # 選擇日期，將 type 為 week, quarter, year 的 date 選出，作為 expiration_dates
-expiration_dates = instruments[instruments['type'].isin(['week', 'quarter', 'year'])]['date'].unique()
+# expiration_dates = instruments[instruments['type'].isin(['week', 'quarter', 'year'])]['date'].unique()
+
+# 選擇日期，將 type 為 week 的 date 選出，作為 expiration_dates
+expiration_dates = instruments[instruments['type'].isin(['week'])]['date'].unique()
 
 # 將 expiration_dates 轉換為 datetime 格式
 expiration_dates = pd.to_datetime(expiration_dates)
@@ -1231,7 +1234,7 @@ for obs_date, exp_date in zip(df_regression_week['observation_dates'], df_regres
 df_regression_week_stats = pd.DataFrame(stats_data)
 
 # 將結果儲存為 CSV
-output_filename = 'RND_regression_week_stats_兩個點.csv'
+output_filename = 'RND_regression_week_stats_兩個點_只有 week.csv'
 df_regression_week_stats.to_csv(output_filename, index=False, encoding='utf-8-sig')
 print(f"\n統計資料已儲存至 {output_filename}")
 
@@ -1289,7 +1292,7 @@ print("\n加入對數報酬率後的資料：")
 print(df_regression_week_stats_filtered)
 
 # 將結果儲存為 CSV
-output_filename = 'RND_regression_week_stats_with_returns_兩個點.csv'
+output_filename = 'RND_regression_week_stats_with_returns_兩個點_只有 week.csv'
 df_regression_week_stats_filtered.to_csv(output_filename, index=False, encoding='utf-8-sig')
 print(f"\n已將結果儲存至 {output_filename}")
 
