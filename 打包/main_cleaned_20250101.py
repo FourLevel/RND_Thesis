@@ -442,6 +442,7 @@ df_regression_day_stats_with_returns.rename(columns={'value': 'Fear and Greed In
 missing_values = df_regression_day_stats_with_returns['Fear and Greed Index'].isna().sum()
 print(f"Fear and Greed Index 中的缺失值數量：{missing_values}")
 
+'''
 # 將所有數據進行標準化
 variables_to_standardize = ['Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index', 
                             'T Return', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
@@ -450,6 +451,7 @@ for var in variables_to_standardize:
     mean = df_regression_day_stats_with_returns[var].mean()
     std = df_regression_day_stats_with_returns[var].std()
     df_regression_day_stats_with_returns[var] = (df_regression_day_stats_with_returns[var] - mean) / std
+'''
 
 # 針對 T Return, Skewness, Kurtosis 欄位，將小於 -3 與大於 3 的資料列刪除
 # df_regression_day_stats_with_returns = df_regression_day_stats_with_returns[(df_regression_day_stats_with_returns['T Return'] >= -2) & (df_regression_day_stats_with_returns['T Return'] <= 2)]
@@ -527,7 +529,7 @@ print(model.summary())
 
 # 準備迴歸變數
 X_3 = df_regression_day_stats_with_returns[[
-    'Mean', 'Skewness',
+    'Median', 'Skewness',
     'T-1 Return', 'T-4 Return'
 ]]
 y = df_regression_day_stats_with_returns['T Return']
@@ -760,6 +762,7 @@ df_regression_day_stats_with_returns.rename(columns={'value': 'Fear and Greed In
 missing_values = df_regression_day_stats_with_returns['Fear and Greed Index'].isna().sum()
 print(f"Fear and Greed Index 中的缺失值數量：{missing_values}")
 
+'''
 # 將所有數據進行標準化
 variables_to_standardize = ['Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index', 
                             'T Return', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
@@ -768,6 +771,7 @@ for var in variables_to_standardize:
     mean = df_regression_day_stats_with_returns[var].mean()
     std = df_regression_day_stats_with_returns[var].std()
     df_regression_day_stats_with_returns[var] = (df_regression_day_stats_with_returns[var] - mean) / std
+'''
 
 # 針對所有變數進行 ADF 檢定
 variables = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
@@ -1080,6 +1084,7 @@ df_regression_week_stats_with_returns.rename(columns={'value': 'Fear and Greed I
 missing_values = df_regression_week_stats_with_returns['Fear and Greed Index'].isna().sum()
 print(f"Fear and Greed Index 中的缺失值數量：{missing_values}")
 
+'''
 # 將所有數據進行標準化
 variables_to_standardize = ['Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index', 
                             'T Return', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
@@ -1088,6 +1093,7 @@ for var in variables_to_standardize:
     mean = df_regression_week_stats_with_returns[var].mean()
     std = df_regression_week_stats_with_returns[var].std()
     df_regression_week_stats_with_returns[var] = (df_regression_week_stats_with_returns[var] - mean) / std
+'''
 
 # 針對 T Return, Skewness, Kurtosis 欄位，將小於 -3 與大於 3 的資料列刪除
 # df_regression_week_stats_with_returns = df_regression_week_stats_with_returns[(df_regression_week_stats_with_returns['T Return'] >= -2) & (df_regression_week_stats_with_returns['T Return'] <= 2)]
@@ -1182,7 +1188,7 @@ print(model.summary())
 
 # 準備迴歸變數
 X_4 = df_regression_week_stats_with_returns[[
-    'Median', 'Kurtosis', 'Fear and Greed Index',
+     'Kurtosis', 'Median', 'Fear and Greed Index',
 ]]
 y = df_regression_week_stats_with_returns['T Return']
 
@@ -1405,10 +1411,12 @@ df_regression_week_stats_with_returns.rename(columns={'value': 'Fear and Greed I
 missing_values = df_regression_week_stats_with_returns['Fear and Greed Index'].isna().sum()
 print(f"Fear and Greed Index 中的缺失值數量：{missing_values}")
 
+'''
 # 將平均值、標準差及 Fear and Greed Index 進行標準化
 df_regression_week_stats_with_returns['Mean'] = (df_regression_week_stats_with_returns['Mean'] - df_regression_week_stats_with_returns['Mean'].mean()) / df_regression_week_stats_with_returns['Mean'].std()
 df_regression_week_stats_with_returns['Std'] = (df_regression_week_stats_with_returns['Std'] - df_regression_week_stats_with_returns['Std'].mean()) / df_regression_week_stats_with_returns['Std'].std()
 df_regression_week_stats_with_returns['Fear and Greed Index'] = (df_regression_week_stats_with_returns['Fear and Greed Index'] - df_regression_week_stats_with_returns['Fear and Greed Index'].mean()) / df_regression_week_stats_with_returns['Fear and Greed Index'].std()
+'''
 
 # 針對所有變數進行 ADF 檢定
 variables = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
@@ -1500,7 +1508,7 @@ print(model.summary())
 
 # 準備迴歸變數
 X_4 = df_regression_week_stats_with_returns[[
-    'Mean', 'Kurtosis', 'Fear and Greed Index',
+     'Kurtosis', 'Median', 'Fear and Greed Index',
 ]]
 y = df_regression_week_stats_with_returns['T Return']
 
