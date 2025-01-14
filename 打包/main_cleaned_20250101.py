@@ -442,9 +442,21 @@ df_regression_day_stats_with_returns.rename(columns={'value': 'Fear and Greed In
 missing_values = df_regression_day_stats_with_returns['Fear and Greed Index'].isna().sum()
 print(f"Fear and Greed Index 中的缺失值數量：{missing_values}")
 
+# 對所有數值變數進行敘述統計
+numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
+stats_summary = df_regression_day_stats_with_returns[numeric_columns].describe().T
+
+# 顯示結果
+print("\n變數的敘述統計：")
+print(stats_summary.round(4))
+
+# 將結果儲存為 CSV
+stats_summary.to_csv(f'descriptive_stats.csv', encoding='utf-8-sig')
+print(f"\n敘述統計結果已儲存至 descriptive_stats.csv")
+
 '''
 # 將所有數據進行標準化
-variables_to_standardize = ['Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index', 
+variables_to_standardize = ['Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 
                             'T Return', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
 
 for var in variables_to_standardize:
@@ -1035,11 +1047,12 @@ df_regression_week_stats_filtered['T Return'] = np.log(
 # 計算前期對數報酬率
 # 先將資料按觀察日排序
 df_regression_week_stats_filtered = df_regression_week_stats_filtered.sort_values('Observation Date')
+
 # 使用 shift 函數來獲取前期的報酬率
-df_regression_week_stats_filtered['T-1 Return'] = df_regression_week_stats_filtered['T Return'].shift(7)
-df_regression_week_stats_filtered['T-2 Return'] = df_regression_week_stats_filtered['T Return'].shift(14)
-df_regression_week_stats_filtered['T-3 Return'] = df_regression_week_stats_filtered['T Return'].shift(21)
-df_regression_week_stats_filtered['T-4 Return'] = df_regression_week_stats_filtered['T Return'].shift(28)
+df_regression_week_stats_filtered['T-1 Return'] = df_regression_week_stats_filtered['T Return'].shift(1)
+df_regression_week_stats_filtered['T-2 Return'] = df_regression_week_stats_filtered['T Return'].shift(2)
+df_regression_week_stats_filtered['T-3 Return'] = df_regression_week_stats_filtered['T Return'].shift(3)
+df_regression_week_stats_filtered['T-4 Return'] = df_regression_week_stats_filtered['T Return'].shift(4)
 
 # 去除 NaN 值
 df_regression_week_stats_filtered = df_regression_week_stats_filtered.dropna()
@@ -1058,7 +1071,7 @@ print(f"\n已將結果儲存至 {output_filename}")
 ''' 執行迴歸分析_每週_一個點方法 '''
 # 讀取資料
 # 檔名日期需自行更改
-df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_with_returns_一個點_2025-01-13.csv')
+df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_with_returns_一個點_2025-01-14.csv')
 df_fear_greed_index = pd.read_csv('Crypto Fear and Greed Index_2020-2024.csv')
 
 # 將兩個 DataFrame 的日期欄位都轉換為 datetime 格式
@@ -1247,10 +1260,7 @@ instruments = pd.read_csv('deribit_data/instruments.csv')
 df_regression_week = pd.DataFrame()
 
 # 選擇日期，將 type 為 week, quarter, year 的 date 選出，作為 expiration_dates
-# expiration_dates = instruments[instruments['type'].isin(['week', 'quarter', 'year'])]['date'].unique()
-
-# 選擇日期，將 type 為 week 的 date 選出，作為 expiration_dates
-expiration_dates = instruments[instruments['type'].isin(['week'])]['date'].unique()
+expiration_dates = instruments[instruments['type'].isin(['week', 'quarter', 'year'])]['date'].unique()
 
 # 將 expiration_dates 轉換為 datetime 格式
 expiration_dates = pd.to_datetime(expiration_dates)
@@ -1319,7 +1329,7 @@ for obs_date, exp_date in zip(df_regression_week['observation_dates'], df_regres
 df_regression_week_stats = pd.DataFrame(stats_data)
 
 # 將結果儲存為 CSV
-output_filename = f'RND_regression_week_stats_兩個點_只有 week_{today}.csv'
+output_filename = f'RND_regression_week_stats_兩個點_{today}.csv'
 df_regression_week_stats.to_csv(output_filename, index=False, encoding='utf-8-sig')
 print(f"\n統計資料已儲存至 {output_filename}")
 
@@ -1363,10 +1373,10 @@ df_regression_week_stats_filtered['T Return'] = np.log(
 # 先將資料按觀察日排序
 df_regression_week_stats_filtered = df_regression_week_stats_filtered.sort_values('Observation Date')
 # 使用 shift 函數來獲取前期的報酬率
-df_regression_week_stats_filtered['T-1 Return'] = df_regression_week_stats_filtered['T Return'].shift(7)
-df_regression_week_stats_filtered['T-2 Return'] = df_regression_week_stats_filtered['T Return'].shift(14)
-df_regression_week_stats_filtered['T-3 Return'] = df_regression_week_stats_filtered['T Return'].shift(21)
-df_regression_week_stats_filtered['T-4 Return'] = df_regression_week_stats_filtered['T Return'].shift(28)
+df_regression_week_stats_filtered['T-1 Return'] = df_regression_week_stats_filtered['T Return'].shift(1)
+df_regression_week_stats_filtered['T-2 Return'] = df_regression_week_stats_filtered['T Return'].shift(2)
+df_regression_week_stats_filtered['T-3 Return'] = df_regression_week_stats_filtered['T Return'].shift(3)
+df_regression_week_stats_filtered['T-4 Return'] = df_regression_week_stats_filtered['T Return'].shift(4)
 
 # 去除 NaN 值
 df_regression_week_stats_filtered = df_regression_week_stats_filtered.dropna()
@@ -1385,7 +1395,7 @@ print(f"\n已將結果儲存至 {output_filename}")
 ''' 執行迴歸分析_每週_兩個點方法 '''
 # 讀取資料
 # 檔名日期需自行更改
-df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_with_returns_兩個點_2025-01-13.csv')
+df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_with_returns_兩個點_2025-01-14.csv')
 df_fear_greed_index = pd.read_csv('Crypto Fear and Greed Index_2020-2024.csv')
 
 # 將兩個 DataFrame 的日期欄位都轉換為 datetime 格式
