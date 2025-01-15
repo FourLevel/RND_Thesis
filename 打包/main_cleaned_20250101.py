@@ -458,8 +458,8 @@ print("\n變數的敘述統計：")
 print(stats_summary.round(4))
 
 # 將結果儲存為 CSV
-stats_summary.to_csv(f'descriptive_stats.csv', encoding='utf-8-sig')
-print(f"\n敘述統計結果已儲存至 descriptive_stats.csv")
+stats_summary.to_csv(f'descriptive stats.csv', encoding='utf-8-sig')
+print(f"\n敘述統計結果已儲存至 descriptive stats.csv")
 
 # 將所有數據進行標準化
 variables_to_standardize = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 
@@ -516,15 +516,15 @@ print("**  : p < 0.05")
 print("*   : p < 0.1")
 
 # 將結果儲存為 CSV
-univariate_regression_results.to_csv(f'univariate_regression_results.csv', index=False, encoding='utf-8-sig')
-print(f"\n簡單迴歸分析結果已儲存至 univariate_regression_results.csv")
+univariate_regression_results.to_csv('univariate regression results.csv', index=False, encoding='utf-8-sig')
+print(f"\n簡單迴歸分析結果已儲存至 univariate regression results.csv")
 
 # 二因子迴歸分析（固定 Skewness）
 # 建立一個 DataFrame 來儲存迴歸結果
 bivariate_regression_results = pd.DataFrame(columns=[
     'Variable', 
-    'Skewness_Coef', 'Skewness_P', 'Skewness_Sig',
-    'Variable_Coef', 'Variable_P', 'Variable_Sig',
+    'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
+    'Variable_Coef', 'Variable_p', 'Variable_Sig',
     'R-squared'
 ])
 
@@ -567,16 +567,13 @@ for var in variables_to_standardize:
         bivariate_regression_results = pd.concat([bivariate_regression_results, pd.DataFrame({
             'Variable': [var],
             'Skewness_Coef': [model.params[1]],     # Skewness 係數
-            'Skewness_P': [p_value_skew],           # Skewness p-value
+            'Skewness_p': [p_value_skew],           # Skewness p-value
             'Skewness_Sig': [sig_skew],             # Skewness 顯著性
             'Variable_Coef': [model.params[2]],      # 變數係數
-            'Variable_P': [p_value_var],             # 變數 p-value
+            'Variable_p': [p_value_var],             # 變數 p-value
             'Variable_Sig': [sig_var],               # 變數顯著性
             'R-squared': [model.rsquared]            # R-squared
         })], ignore_index=True)
-
-# 將結果按 Variable_P 排序
-bivariate_regression_results = bivariate_regression_results.sort_values('Variable_P')
 
 # 顯示結果
 print("\n二因子迴歸分析結果（固定 Skewness）：")
@@ -587,8 +584,189 @@ print("**  : p < 0.05")
 print("*   : p < 0.1")
 
 # 將結果儲存為 CSV
-bivariate_regression_results.to_csv(f'bivariate_regression_results.csv', index=False, encoding='utf-8-sig')
-print(f"\n二因子迴歸分析結果已儲存至 bivariate_regression_results.csv")
+bivariate_regression_results.to_csv('bivariate regression results.csv', index=False, encoding='utf-8-sig')
+print(f"\n二因子迴歸分析結果已儲存至 bivariate regression results.csv")
+
+# 三因子迴歸分析（固定 Skewness 和 Kurtosis）
+# 建立一個 DataFrame 來儲存迴歸結果
+trivariate_regression_results = pd.DataFrame(columns=[
+    'Variable',
+    'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
+    'Kurtosis_Coef', 'Kurtosis_p', 'Kurtosis_Sig',
+    'Variable_Coef', 'Variable_p', 'Variable_Sig',
+    'R-squared'
+])
+
+# 設定 Y 變數
+y = df_regression_day_stats_with_returns['T Return']
+
+# 對每個 X 變數進行三因子迴歸（與 Skewness, Kurtosis 配對）
+for var in variables_to_standardize:
+    if var not in ['T Return', 'Skewness', 'Kurtosis']:  # 排除 Y 變數、Skewness 和 Kurtosis
+        # 準備 X 變數
+        X = df_regression_day_stats_with_returns[['Skewness', 'Kurtosis', var]]
+        X = sm.add_constant(X)  # 加入常數項
+        
+        # 執行迴歸
+        model = sm.OLS(y, X).fit()
+        
+        # 判斷 Skewness 的顯著水準
+        p_value_skew = model.pvalues[1]
+        if p_value_skew < 0.01:
+            sig_skew = '***'
+        elif p_value_skew < 0.05:
+            sig_skew = '**'
+        elif p_value_skew < 0.1:
+            sig_skew = '*'
+        else:
+            sig_skew = ''
+            
+        # 判斷 Kurtosis 的顯著水準
+        p_value_kurt = model.pvalues[2]
+        if p_value_kurt < 0.01:
+            sig_kurt = '***'
+        elif p_value_kurt < 0.05:
+            sig_kurt = '**'
+        elif p_value_kurt < 0.1:
+            sig_kurt = '*'
+        else:
+            sig_kurt = ''
+            
+        # 判斷第三個變數的顯著水準
+        p_value_var = model.pvalues[3]
+        if p_value_var < 0.01:
+            sig_var = '***'
+        elif p_value_var < 0.05:
+            sig_var = '**'
+        elif p_value_var < 0.1:
+            sig_var = '*'
+        else:
+            sig_var = ''
+
+        # 儲存結果
+        trivariate_regression_results = pd.concat([trivariate_regression_results, pd.DataFrame({
+            'Variable': [var],
+            'Skewness_Coef': [model.params[1]],     # Skewness 係數
+            'Skewness_p': [p_value_skew],           # Skewness p-value
+            'Skewness_Sig': [sig_skew],             # Skewness 顯著性
+            'Kurtosis_Coef': [model.params[2]],     # Kurtosis 係數
+            'Kurtosis_p': [p_value_kurt],           # Kurtosis p-value
+            'Kurtosis_Sig': [sig_kurt],             # Kurtosis 顯著性
+            'Variable_Coef': [model.params[3]],      # 變數係數
+            'Variable_p': [p_value_var],             # 變數 p-value
+            'Variable_Sig': [sig_var],               # 變數顯著性
+            'R-squared': [model.rsquared]            # R-squared
+        })], ignore_index=True)
+
+# 顯示結果
+print("\n三因子迴歸分析結果（固定 Skewness 和 Kurtosis）：")
+print(trivariate_regression_results.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 將結果儲存為 CSV
+trivariate_regression_results.to_csv('trivariate regression results.csv', index=False, encoding='utf-8-sig')
+print(f"\n三因子迴歸分析結果已儲存至 trivariate regression results.csv")
+
+# 四因子迴歸分析（固定 Skewness、Kurtosis 和 Std）
+# 建立一個 DataFrame 來儲存迴歸結果
+quadvariate_regression_results = pd.DataFrame(columns=[
+    'Variable',
+    'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
+    'Kurtosis_Coef', 'Kurtosis_p', 'Kurtosis_Sig',
+    'Std_Coef', 'Std_p', 'Std_Sig',
+    'Variable_Coef', 'Variable_p', 'Variable_Sig',
+    'R-squared'
+])
+
+# 設定 Y 變數
+y = df_regression_day_stats_with_returns['T Return']
+
+# 對每個 X 變數進行四因子迴歸（與 Skewness, Kurtosis, Std 配對）
+for var in variables_to_standardize:
+    if var not in ['T Return', 'Skewness', 'Kurtosis', 'Std']:  # 排除 Y 變數和固定的三個因子
+        # 準備 X 變數
+        X = df_regression_day_stats_with_returns[['Skewness', 'Kurtosis', 'Std', var]]
+        X = sm.add_constant(X)  # 加入常數項
+        
+        # 執行迴歸
+        model = sm.OLS(y, X).fit()
+        
+        # 判斷 Skewness 的顯著水準
+        p_value_skew = model.pvalues[1]
+        if p_value_skew < 0.01:
+            sig_skew = '***'
+        elif p_value_skew < 0.05:
+            sig_skew = '**'
+        elif p_value_skew < 0.1:
+            sig_skew = '*'
+        else:
+            sig_skew = ''
+            
+        # 判斷 Kurtosis 的顯著水準
+        p_value_kurt = model.pvalues[2]
+        if p_value_kurt < 0.01:
+            sig_kurt = '***'
+        elif p_value_kurt < 0.05:
+            sig_kurt = '**'
+        elif p_value_kurt < 0.1:
+            sig_kurt = '*'
+        else:
+            sig_kurt = ''
+            
+        # 判斷 Std 的顯著水準
+        p_value_std = model.pvalues[3]
+        if p_value_std < 0.01:
+            sig_std = '***'
+        elif p_value_std < 0.05:
+            sig_std = '**'
+        elif p_value_std < 0.1:
+            sig_std = '*'
+        else:
+            sig_std = ''
+            
+        # 判斷第四個變數的顯著水準
+        p_value_var = model.pvalues[4]
+        if p_value_var < 0.01:
+            sig_var = '***'
+        elif p_value_var < 0.05:
+            sig_var = '**'
+        elif p_value_var < 0.1:
+            sig_var = '*'
+        else:
+            sig_var = ''
+
+        # 儲存結果
+        quadvariate_regression_results = pd.concat([quadvariate_regression_results, pd.DataFrame({
+            'Variable': [var],
+            'Skewness_Coef': [model.params[1]],     # Skewness 係數
+            'Skewness_p': [p_value_skew],           # Skewness p-value
+            'Skewness_Sig': [sig_skew],             # Skewness 顯著性
+            'Kurtosis_Coef': [model.params[2]],     # Kurtosis 係數
+            'Kurtosis_p': [p_value_kurt],           # Kurtosis p-value
+            'Kurtosis_Sig': [sig_kurt],             # Kurtosis 顯著性
+            'Std_Coef': [model.params[3]],          # Std 係數
+            'Std_p': [p_value_std],                 # Std p-value
+            'Std_Sig': [sig_std],                   # Std 顯著性
+            'Variable_Coef': [model.params[4]],      # 變數係數
+            'Variable_p': [p_value_var],             # 變數 p-value
+            'Variable_Sig': [sig_var],               # 變數顯著性
+            'R-squared': [model.rsquared]            # R-squared
+        })], ignore_index=True)
+
+# 顯示結果
+print("\n四因子迴歸分析結果（固定 Skewness、Kurtosis 和 Std）：")
+print(quadvariate_regression_results.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 將結果儲存為 CSV
+quadvariate_regression_results.to_csv('quadvariate regression results.csv', index=False, encoding='utf-8-sig')
+print(f"\n四因子迴歸分析結果已儲存至 quadvariate regression results.csv")
 
 '''
 # 針對 T Return, Skewness, Kurtosis 欄位，將小於 -3 與大於 3 的資料列刪除
@@ -644,6 +822,71 @@ model = sm.OLS(y, X_1).fit()
 # 印出迴歸結果
 print("迴歸分析結果：")
 print(model.summary())
+
+# 建立一個 DataFrame 來儲存迴歸結果
+regression_results = pd.DataFrame(columns=[
+    'Variable',
+    'Coefficient',
+    'Std Error',
+    'T-Stat',
+    'P-Value',
+    'Significance'
+])
+
+# 取得模型結果
+variables = ['const', 'Skewness', 'Median', 'T-4 Return']
+coefficients = model.params
+std_errors = model.bse
+t_stats = model.tvalues
+p_values = model.pvalues
+
+# 判斷顯著性
+def get_significance(p_value):
+    if p_value < 0.01:
+        return '***'
+    elif p_value < 0.05:
+        return '**'
+    elif p_value < 0.1:
+        return '*'
+    return ''
+
+# 整理結果
+for var in variables:
+    idx = variables.index(var)
+    regression_results = pd.concat([regression_results, pd.DataFrame({
+        'Variable': [var],
+        'Coefficient': [coefficients[idx]],
+        'Std Error': [std_errors[idx]],
+        'T-Stat': [t_stats[idx]],
+        'P-Value': [p_values[idx]],
+        'Significance': [get_significance(p_values[idx])]
+    })], ignore_index=True)
+
+# 加入模型整體統計量
+model_stats = pd.DataFrame({
+    'Metric': ['R-squared', 'Adj. R-squared', 'F-statistic', 'Prob (F-statistic)', 'Number of Observations'],
+    'Value': [
+        model.rsquared,
+        model.rsquared_adj,
+        model.fvalue,
+        model.f_pvalue,
+        model.nobs
+    ]
+})
+
+# 顯示結果
+print("\n迴歸係數及顯著性：")
+print(regression_results.round(4))
+print("\n模型統計量：")
+print(model_stats.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 儲存結果
+# regression_results.to_csv('regression_model_coefficients.csv', index=False, encoding='utf-8-sig')
+# model_stats.to_csv('regression_model_statistics.csv', index=False, encoding='utf-8-sig')
 
 ###########################################################
 
@@ -905,7 +1148,6 @@ df_regression_day_stats_with_returns.to_csv(output_filename, index=False, encodi
 print(f"\n已將結果儲存至 {output_filename}")
 
 
-
 ''' 執行迴歸分析_每天_兩個點方法 '''
 # 讀取資料
 df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_all_data_兩個點_2025-01-15.csv')
@@ -919,8 +1161,8 @@ print("\n變數的敘述統計：")
 print(stats_summary.round(4))
 
 # 將結果儲存為 CSV
-stats_summary.to_csv(f'descriptive_stats.csv', encoding='utf-8-sig')
-print(f"\n敘述統計結果已儲存至 descriptive_stats.csv")
+stats_summary.to_csv('descriptive stats.csv', encoding='utf-8-sig')
+print(f"\n敘述統計結果已儲存至 descriptive stats.csv")
 
 # 將所有數據進行標準化
 variables_to_standardize = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 
@@ -930,6 +1172,304 @@ for var in variables_to_standardize:
     mean = df_regression_day_stats_with_returns[var].mean()
     std = df_regression_day_stats_with_returns[var].std()
     df_regression_day_stats_with_returns[var] = (df_regression_day_stats_with_returns[var] - mean) / std
+
+# 單因子迴歸分析
+# 建立一個 DataFrame 來儲存迴歸結果
+univariate_regression_results = pd.DataFrame(columns=['Variable', 'Coefficient', 'p value','Significance', 'R-squared'])
+
+# 設定 Y 變數
+y = df_regression_day_stats_with_returns['T Return']
+
+# 對每個 X 變數進行簡單迴歸
+for var in variables_to_standardize:
+    if var != 'T Return':  # 排除 Y 變數
+        # 準備 X 變數
+        X = df_regression_day_stats_with_returns[var]
+        X = sm.add_constant(X)  # 加入常數項
+        
+        # 執行迴歸
+        model = sm.OLS(y, X).fit()
+        
+        # 判斷顯著水準
+        p_value = model.pvalues[1]
+        if p_value < 0.01:
+            significance = '***'
+        elif p_value < 0.05:
+            significance = '**'
+        elif p_value < 0.1:
+            significance = '*'
+        else:
+            significance = ''
+
+        # 儲存結果
+        univariate_regression_results = pd.concat([univariate_regression_results, pd.DataFrame({
+            'Variable': [var],
+            'Coefficient': [model.params[1]],  # 係數
+            'p value': [model.pvalues[1]],    # p value
+            'Significance': [significance],   # 顯著水準
+            'R-squared': [model.rsquared]     # R-squared
+        })], ignore_index=True)
+
+# 顯示結果
+print("\n簡單迴歸分析結果：")
+print(univariate_regression_results.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 將結果儲存為 CSV
+univariate_regression_results.to_csv('univariate regression results.csv', index=False, encoding='utf-8-sig')
+print(f"\n簡單迴歸分析結果已儲存至 univariate regression results.csv")
+
+# 二因子迴歸分析（固定 Skewness）
+# 建立一個 DataFrame 來儲存迴歸結果
+bivariate_regression_results = pd.DataFrame(columns=[
+    'Variable', 
+    'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
+    'Variable_Coef', 'Variable_p', 'Variable_Sig',
+    'R-squared'
+])
+
+# 設定 Y 變數
+y = df_regression_day_stats_with_returns['T Return']
+
+# 對每個 X 變數進行二因子迴歸（與 Skewness 配對）
+for var in variables_to_standardize:
+    if var not in ['T Return', 'Skewness']:  # 排除 Y 變數和 Skewness
+        # 準備 X 變數
+        X = df_regression_day_stats_with_returns[['Skewness', var]]
+        X = sm.add_constant(X)  # 加入常數項
+        
+        # 執行迴歸
+        model = sm.OLS(y, X).fit()
+        
+        # 判斷 Skewness 的顯著水準
+        p_value_skew = model.pvalues[1]
+        if p_value_skew < 0.01:
+            sig_skew = '***'
+        elif p_value_skew < 0.05:
+            sig_skew = '**'
+        elif p_value_skew < 0.1:
+            sig_skew = '*'
+        else:
+            sig_skew = ''
+            
+        # 判斷另一個變數的顯著水準
+        p_value_var = model.pvalues[2]
+        if p_value_var < 0.01:
+            sig_var = '***'
+        elif p_value_var < 0.05:
+            sig_var = '**'
+        elif p_value_var < 0.1:
+            sig_var = '*'
+        else:
+            sig_var = ''
+
+        # 儲存結果
+        bivariate_regression_results = pd.concat([bivariate_regression_results, pd.DataFrame({
+            'Variable': [var],
+            'Skewness_Coef': [model.params[1]],     # Skewness 係數
+            'Skewness_p': [p_value_skew],           # Skewness p-value
+            'Skewness_Sig': [sig_skew],             # Skewness 顯著性
+            'Variable_Coef': [model.params[2]],      # 變數係數
+            'Variable_p': [p_value_var],             # 變數 p-value
+            'Variable_Sig': [sig_var],               # 變數顯著性
+            'R-squared': [model.rsquared]            # R-squared
+        })], ignore_index=True)
+
+# 顯示結果
+print("\n二因子迴歸分析結果（固定 Skewness）：")
+print(bivariate_regression_results.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 將結果儲存為 CSV
+bivariate_regression_results.to_csv('bivariate regression results.csv', index=False, encoding='utf-8-sig')
+print(f"\n二因子迴歸分析結果已儲存至 bivariate regression results.csv")
+
+# 三因子迴歸分析（固定 Skewness 和 Kurtosis）
+# 建立一個 DataFrame 來儲存迴歸結果
+trivariate_regression_results = pd.DataFrame(columns=[
+    'Variable',
+    'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
+    'Kurtosis_Coef', 'Kurtosis_p', 'Kurtosis_Sig',
+    'Variable_Coef', 'Variable_p', 'Variable_Sig',
+    'R-squared'
+])
+
+# 設定 Y 變數
+y = df_regression_day_stats_with_returns['T Return']
+
+# 對每個 X 變數進行三因子迴歸（與 Skewness, Kurtosis 配對）
+for var in variables_to_standardize:
+    if var not in ['T Return', 'Skewness', 'Kurtosis']:  # 排除 Y 變數、Skewness 和 Kurtosis
+        # 準備 X 變數
+        X = df_regression_day_stats_with_returns[['Skewness', 'Kurtosis', var]]
+        X = sm.add_constant(X)  # 加入常數項
+        
+        # 執行迴歸
+        model = sm.OLS(y, X).fit()
+        
+        # 判斷 Skewness 的顯著水準
+        p_value_skew = model.pvalues[1]
+        if p_value_skew < 0.01:
+            sig_skew = '***'
+        elif p_value_skew < 0.05:
+            sig_skew = '**'
+        elif p_value_skew < 0.1:
+            sig_skew = '*'
+        else:
+            sig_skew = ''
+            
+        # 判斷 Kurtosis 的顯著水準
+        p_value_kurt = model.pvalues[2]
+        if p_value_kurt < 0.01:
+            sig_kurt = '***'
+        elif p_value_kurt < 0.05:
+            sig_kurt = '**'
+        elif p_value_kurt < 0.1:
+            sig_kurt = '*'
+        else:
+            sig_kurt = ''
+            
+        # 判斷第三個變數的顯著水準
+        p_value_var = model.pvalues[3]
+        if p_value_var < 0.01:
+            sig_var = '***'
+        elif p_value_var < 0.05:
+            sig_var = '**'
+        elif p_value_var < 0.1:
+            sig_var = '*'
+        else:
+            sig_var = ''
+
+        # 儲存結果
+        trivariate_regression_results = pd.concat([trivariate_regression_results, pd.DataFrame({
+            'Variable': [var],
+            'Skewness_Coef': [model.params[1]],     # Skewness 係數
+            'Skewness_p': [p_value_skew],           # Skewness p-value
+            'Skewness_Sig': [sig_skew],             # Skewness 顯著性
+            'Kurtosis_Coef': [model.params[2]],     # Kurtosis 係數
+            'Kurtosis_p': [p_value_kurt],           # Kurtosis p-value
+            'Kurtosis_Sig': [sig_kurt],             # Kurtosis 顯著性
+            'Variable_Coef': [model.params[3]],      # 變數係數
+            'Variable_p': [p_value_var],             # 變數 p-value
+            'Variable_Sig': [sig_var],               # 變數顯著性
+            'R-squared': [model.rsquared]            # R-squared
+        })], ignore_index=True)
+
+# 顯示結果
+print("\n三因子迴歸分析結果（固定 Skewness 和 Kurtosis）：")
+print(trivariate_regression_results.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 將結果儲存為 CSV
+trivariate_regression_results.to_csv('trivariate regression results.csv', index=False, encoding='utf-8-sig')
+print(f"\n三因子迴歸分析結果已儲存至 trivariate regression results.csv")
+
+# 四因子迴歸分析（固定 Skewness、Kurtosis 和 Std）
+# 建立一個 DataFrame 來儲存迴歸結果
+quadvariate_regression_results = pd.DataFrame(columns=[
+    'Variable',
+    'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
+    'Kurtosis_Coef', 'Kurtosis_p', 'Kurtosis_Sig',
+    'Std_Coef', 'Std_p', 'Std_Sig',
+    'Variable_Coef', 'Variable_p', 'Variable_Sig',
+    'R-squared'
+])
+
+# 設定 Y 變數
+y = df_regression_day_stats_with_returns['T Return']
+
+# 對每個 X 變數進行四因子迴歸（與 Skewness, Kurtosis, Std 配對）
+for var in variables_to_standardize:
+    if var not in ['T Return', 'Skewness', 'Kurtosis', 'Std']:  # 排除 Y 變數和固定的三個因子
+        # 準備 X 變數
+        X = df_regression_day_stats_with_returns[['Skewness', 'Kurtosis', 'Std', var]]
+        X = sm.add_constant(X)  # 加入常數項
+        
+        # 執行迴歸
+        model = sm.OLS(y, X).fit()
+        
+        # 判斷 Skewness 的顯著水準
+        p_value_skew = model.pvalues[1]
+        if p_value_skew < 0.01:
+            sig_skew = '***'
+        elif p_value_skew < 0.05:
+            sig_skew = '**'
+        elif p_value_skew < 0.1:
+            sig_skew = '*'
+        else:
+            sig_skew = ''
+            
+        # 判斷 Kurtosis 的顯著水準
+        p_value_kurt = model.pvalues[2]
+        if p_value_kurt < 0.01:
+            sig_kurt = '***'
+        elif p_value_kurt < 0.05:
+            sig_kurt = '**'
+        elif p_value_kurt < 0.1:
+            sig_kurt = '*'
+        else:
+            sig_kurt = ''
+            
+        # 判斷 Std 的顯著水準
+        p_value_std = model.pvalues[3]
+        if p_value_std < 0.01:
+            sig_std = '***'
+        elif p_value_std < 0.05:
+            sig_std = '**'
+        elif p_value_std < 0.1:
+            sig_std = '*'
+        else:
+            sig_std = ''
+            
+        # 判斷第四個變數的顯著水準
+        p_value_var = model.pvalues[4]
+        if p_value_var < 0.01:
+            sig_var = '***'
+        elif p_value_var < 0.05:
+            sig_var = '**'
+        elif p_value_var < 0.1:
+            sig_var = '*'
+        else:
+            sig_var = ''
+
+        # 儲存結果
+        quadvariate_regression_results = pd.concat([quadvariate_regression_results, pd.DataFrame({
+            'Variable': [var],
+            'Skewness_Coef': [model.params[1]],     # Skewness 係數
+            'Skewness_p': [p_value_skew],           # Skewness p-value
+            'Skewness_Sig': [sig_skew],             # Skewness 顯著性
+            'Kurtosis_Coef': [model.params[2]],     # Kurtosis 係數
+            'Kurtosis_p': [p_value_kurt],           # Kurtosis p-value
+            'Kurtosis_Sig': [sig_kurt],             # Kurtosis 顯著性
+            'Std_Coef': [model.params[3]],          # Std 係數
+            'Std_p': [p_value_std],                 # Std p-value
+            'Std_Sig': [sig_std],                   # Std 顯著性
+            'Variable_Coef': [model.params[4]],      # 變數係數
+            'Variable_p': [p_value_var],             # 變數 p-value
+            'Variable_Sig': [sig_var],               # 變數顯著性
+            'R-squared': [model.rsquared]            # R-squared
+        })], ignore_index=True)
+
+# 顯示結果
+print("\n四因子迴歸分析結果（固定 Skewness、Kurtosis 和 Std）：")
+print(quadvariate_regression_results.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 將結果儲存為 CSV
+quadvariate_regression_results.to_csv('quadvariate regression results.csv', index=False, encoding='utf-8-sig')
+print(f"\n四因子迴歸分析結果已儲存至 quadvariate regression results.csv")
 
 '''
 # 針對所有變數進行 ADF 檢定
@@ -980,6 +1520,71 @@ model = sm.OLS(y, X_1).fit()
 # 印出迴歸結果
 print("迴歸分析結果：")
 print(model.summary())
+
+# 建立一個 DataFrame 來儲存迴歸結果
+regression_results = pd.DataFrame(columns=[
+    'Variable',
+    'Coefficient',
+    'Std Error',
+    'T-Stat',
+    'P-Value',
+    'Significance'
+])
+
+# 取得模型結果
+variables = ['const', 'Skewness', 'Median', 'T-4 Return']
+coefficients = model.params
+std_errors = model.bse
+t_stats = model.tvalues
+p_values = model.pvalues
+
+# 判斷顯著性
+def get_significance(p_value):
+    if p_value < 0.01:
+        return '***'
+    elif p_value < 0.05:
+        return '**'
+    elif p_value < 0.1:
+        return '*'
+    return ''
+
+# 整理結果
+for var in variables:
+    idx = variables.index(var)
+    regression_results = pd.concat([regression_results, pd.DataFrame({
+        'Variable': [var],
+        'Coefficient': [coefficients[idx]],
+        'Std Error': [std_errors[idx]],
+        'T-Stat': [t_stats[idx]],
+        'P-Value': [p_values[idx]],
+        'Significance': [get_significance(p_values[idx])]
+    })], ignore_index=True)
+
+# 加入模型整體統計量
+model_stats = pd.DataFrame({
+    'Metric': ['R-squared', 'Adj. R-squared', 'F-statistic', 'Prob (F-statistic)', 'Number of Observations'],
+    'Value': [
+        model.rsquared,
+        model.rsquared_adj,
+        model.fvalue,
+        model.f_pvalue,
+        model.nobs
+    ]
+})
+
+# 顯示結果
+print("\n迴歸係數及顯著性：")
+print(regression_results.round(4))
+print("\n模型統計量：")
+print(model_stats.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 儲存結果
+# regression_results.to_csv('regression_model_coefficients.csv', index=False, encoding='utf-8-sig')
+# model_stats.to_csv('regression_model_statistics.csv', index=False, encoding='utf-8-sig')
 
 ###########################################################
 
@@ -1261,8 +1866,8 @@ print("\n變數的敘述統計：")
 print(stats_summary.round(4))
 
 # 將結果儲存為 CSV
-stats_summary.to_csv(f'descriptive_stats.csv', encoding='utf-8-sig')
-print(f"\n敘述統計結果已儲存至 descriptive_stats.csv")
+stats_summary.to_csv('descriptive stats.csv', encoding='utf-8-sig')
+print(f"\n敘述統計結果已儲存至 descriptive stats.csv")
 
 # 將所有數據進行標準化
 variables_to_standardize = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 
@@ -1272,6 +1877,304 @@ for var in variables_to_standardize:
     mean = df_regression_week_stats_with_returns[var].mean()
     std = df_regression_week_stats_with_returns[var].std()
     df_regression_week_stats_with_returns[var] = (df_regression_week_stats_with_returns[var] - mean) / std
+
+# 單因子迴歸分析
+# 建立一個 DataFrame 來儲存迴歸結果
+univariate_regression_results = pd.DataFrame(columns=['Variable', 'Coefficient', 'p value','Significance', 'R-squared'])
+
+# 設定 Y 變數
+y = df_regression_week_stats_with_returns['T Return']
+
+# 對每個 X 變數進行簡單迴歸
+for var in variables_to_standardize:
+    if var != 'T Return':  # 排除 Y 變數
+        # 準備 X 變數
+        X = df_regression_week_stats_with_returns[var]
+        X = sm.add_constant(X)  # 加入常數項
+
+        # 執行迴歸
+        model = sm.OLS(y, X).fit()
+        
+        # 判斷顯著水準
+        p_value = model.pvalues[1]
+        if p_value < 0.01:
+            significance = '***'
+        elif p_value < 0.05:
+            significance = '**'
+        elif p_value < 0.1:
+            significance = '*'
+        else:
+            significance = ''
+
+        # 儲存結果
+        univariate_regression_results = pd.concat([univariate_regression_results, pd.DataFrame({
+            'Variable': [var],
+            'Coefficient': [model.params[1]],  # 係數
+            'p value': [model.pvalues[1]],    # p value
+            'Significance': [significance],   # 顯著水準
+            'R-squared': [model.rsquared]     # R-squared
+        })], ignore_index=True)
+
+# 顯示結果
+print("\n簡單迴歸分析結果：")
+print(univariate_regression_results.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 將結果儲存為 CSV
+univariate_regression_results.to_csv('univariate regression results.csv', index=False, encoding='utf-8-sig')
+print(f"\n簡單迴歸分析結果已儲存至 univariate regression results.csv")
+
+# 二因子迴歸分析（固定 Skewness）
+# 建立一個 DataFrame 來儲存迴歸結果
+bivariate_regression_results = pd.DataFrame(columns=[
+    'Variable', 
+    'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
+    'Variable_Coef', 'Variable_p', 'Variable_Sig',
+    'R-squared'
+])
+
+# 設定 Y 變數
+y = df_regression_week_stats_with_returns['T Return']
+
+# 對每個 X 變數進行二因子迴歸（與 Skewness 配對）
+for var in variables_to_standardize:
+    if var not in ['T Return', 'Skewness']:  # 排除 Y 變數和 Skewness
+        # 準備 X 變數
+        X = df_regression_week_stats_with_returns[['Skewness', var]]
+        X = sm.add_constant(X)  # 加入常數項
+        
+        # 執行迴歸
+        model = sm.OLS(y, X).fit()
+        
+        # 判斷 Skewness 的顯著水準
+        p_value_skew = model.pvalues[1]
+        if p_value_skew < 0.01:
+            sig_skew = '***'
+        elif p_value_skew < 0.05:
+            sig_skew = '**'
+        elif p_value_skew < 0.1:
+            sig_skew = '*'
+        else:
+            sig_skew = ''
+            
+        # 判斷另一個變數的顯著水準
+        p_value_var = model.pvalues[2]
+        if p_value_var < 0.01:
+            sig_var = '***'
+        elif p_value_var < 0.05:
+            sig_var = '**'
+        elif p_value_var < 0.1:
+            sig_var = '*'
+        else:
+            sig_var = ''
+
+        # 儲存結果
+        bivariate_regression_results = pd.concat([bivariate_regression_results, pd.DataFrame({
+            'Variable': [var],
+            'Skewness_Coef': [model.params[1]],     # Skewness 係數
+            'Skewness_p': [p_value_skew],           # Skewness p-value
+            'Skewness_Sig': [sig_skew],             # Skewness 顯著性
+            'Variable_Coef': [model.params[2]],      # 變數係數
+            'Variable_p': [p_value_var],             # 變數 p-value
+            'Variable_Sig': [sig_var],               # 變數顯著性
+            'R-squared': [model.rsquared]            # R-squared
+        })], ignore_index=True)
+
+# 顯示結果
+print("\n二因子迴歸分析結果（固定 Skewness）：")
+print(bivariate_regression_results.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 將結果儲存為 CSV
+bivariate_regression_results.to_csv('bivariate regression results.csv', index=False, encoding='utf-8-sig')
+print(f"\n二因子迴歸分析結果已儲存至 bivariate regression results.csv")
+
+# 三因子迴歸分析（固定 Skewness 和 Kurtosis）
+# 建立一個 DataFrame 來儲存迴歸結果
+trivariate_regression_results = pd.DataFrame(columns=[
+    'Variable',
+    'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
+    'Kurtosis_Coef', 'Kurtosis_p', 'Kurtosis_Sig',
+    'Variable_Coef', 'Variable_p', 'Variable_Sig',
+    'R-squared'
+])
+
+# 設定 Y 變數
+y = df_regression_week_stats_with_returns['T Return']
+
+# 對每個 X 變數進行三因子迴歸（與 Skewness, Kurtosis 配對）
+for var in variables_to_standardize:
+    if var not in ['T Return', 'Skewness', 'Kurtosis']:  # 排除 Y 變數、Skewness 和 Kurtosis
+        # 準備 X 變數
+        X = df_regression_week_stats_with_returns[['Skewness', 'Kurtosis', var]]
+        X = sm.add_constant(X)  # 加入常數項
+        
+        # 執行迴歸
+        model = sm.OLS(y, X).fit()
+        
+        # 判斷 Skewness 的顯著水準
+        p_value_skew = model.pvalues[1]
+        if p_value_skew < 0.01:
+            sig_skew = '***'
+        elif p_value_skew < 0.05:
+            sig_skew = '**'
+        elif p_value_skew < 0.1:
+            sig_skew = '*'
+        else:
+            sig_skew = ''
+            
+        # 判斷 Kurtosis 的顯著水準
+        p_value_kurt = model.pvalues[2]
+        if p_value_kurt < 0.01:
+            sig_kurt = '***'
+        elif p_value_kurt < 0.05:
+            sig_kurt = '**'
+        elif p_value_kurt < 0.1:
+            sig_kurt = '*'
+        else:
+            sig_kurt = ''
+            
+        # 判斷第三個變數的顯著水準
+        p_value_var = model.pvalues[3]
+        if p_value_var < 0.01:
+            sig_var = '***'
+        elif p_value_var < 0.05:
+            sig_var = '**'
+        elif p_value_var < 0.1:
+            sig_var = '*'
+        else:
+            sig_var = ''
+
+        # 儲存結果
+        trivariate_regression_results = pd.concat([trivariate_regression_results, pd.DataFrame({
+            'Variable': [var],
+            'Skewness_Coef': [model.params[1]],     # Skewness 係數
+            'Skewness_p': [p_value_skew],           # Skewness p-value
+            'Skewness_Sig': [sig_skew],             # Skewness 顯著性
+            'Kurtosis_Coef': [model.params[2]],     # Kurtosis 係數
+            'Kurtosis_p': [p_value_kurt],           # Kurtosis p-value
+            'Kurtosis_Sig': [sig_kurt],             # Kurtosis 顯著性
+            'Variable_Coef': [model.params[3]],      # 變數係數
+            'Variable_p': [p_value_var],             # 變數 p-value
+            'Variable_Sig': [sig_var],               # 變數顯著性
+            'R-squared': [model.rsquared]            # R-squared
+        })], ignore_index=True)
+
+# 顯示結果
+print("\n三因子迴歸分析結果（固定 Skewness 和 Kurtosis）：")
+print(trivariate_regression_results.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 將結果儲存為 CSV
+trivariate_regression_results.to_csv('trivariate regression results.csv', index=False, encoding='utf-8-sig')
+print(f"\n三因子迴歸分析結果已儲存至 trivariate regression results.csv")
+
+# 四因子迴歸分析（固定 Skewness、Kurtosis 和 Std）
+# 建立一個 DataFrame 來儲存迴歸結果
+quadvariate_regression_results = pd.DataFrame(columns=[
+    'Variable',
+    'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
+    'Kurtosis_Coef', 'Kurtosis_p', 'Kurtosis_Sig',
+    'Std_Coef', 'Std_p', 'Std_Sig',
+    'Variable_Coef', 'Variable_p', 'Variable_Sig',
+    'R-squared'
+])
+
+# 設定 Y 變數
+y = df_regression_week_stats_with_returns['T Return']
+
+# 對每個 X 變數進行四因子迴歸（與 Skewness, Kurtosis, Std 配對）
+for var in variables_to_standardize:
+    if var not in ['T Return', 'Skewness', 'Kurtosis', 'Std']:  # 排除 Y 變數和固定的三個因子
+        # 準備 X 變數
+        X = df_regression_week_stats_with_returns[['Skewness', 'Kurtosis', 'Std', var]]
+        X = sm.add_constant(X)  # 加入常數項
+        
+        # 執行迴歸
+        model = sm.OLS(y, X).fit()
+        
+        # 判斷 Skewness 的顯著水準
+        p_value_skew = model.pvalues[1]
+        if p_value_skew < 0.01:
+            sig_skew = '***'
+        elif p_value_skew < 0.05:
+            sig_skew = '**'
+        elif p_value_skew < 0.1:
+            sig_skew = '*'
+        else:
+            sig_skew = ''
+            
+        # 判斷 Kurtosis 的顯著水準
+        p_value_kurt = model.pvalues[2]
+        if p_value_kurt < 0.01:
+            sig_kurt = '***'
+        elif p_value_kurt < 0.05:
+            sig_kurt = '**'
+        elif p_value_kurt < 0.1:
+            sig_kurt = '*'
+        else:
+            sig_kurt = ''
+            
+        # 判斷 Std 的顯著水準
+        p_value_std = model.pvalues[3]
+        if p_value_std < 0.01:
+            sig_std = '***'
+        elif p_value_std < 0.05:
+            sig_std = '**'
+        elif p_value_std < 0.1:
+            sig_std = '*'
+        else:
+            sig_std = ''
+            
+        # 判斷第四個變數的顯著水準
+        p_value_var = model.pvalues[4]
+        if p_value_var < 0.01:
+            sig_var = '***'
+        elif p_value_var < 0.05:
+            sig_var = '**'
+        elif p_value_var < 0.1:
+            sig_var = '*'
+        else:
+            sig_var = ''
+
+        # 儲存結果
+        quadvariate_regression_results = pd.concat([quadvariate_regression_results, pd.DataFrame({
+            'Variable': [var],
+            'Skewness_Coef': [model.params[1]],     # Skewness 係數
+            'Skewness_p': [p_value_skew],           # Skewness p-value
+            'Skewness_Sig': [sig_skew],             # Skewness 顯著性
+            'Kurtosis_Coef': [model.params[2]],     # Kurtosis 係數
+            'Kurtosis_p': [p_value_kurt],           # Kurtosis p-value
+            'Kurtosis_Sig': [sig_kurt],             # Kurtosis 顯著性
+            'Std_Coef': [model.params[3]],          # Std 係數
+            'Std_p': [p_value_std],                 # Std p-value
+            'Std_Sig': [sig_std],                   # Std 顯著性
+            'Variable_Coef': [model.params[4]],      # 變數係數
+            'Variable_p': [p_value_var],             # 變數 p-value
+            'Variable_Sig': [sig_var],               # 變數顯著性
+            'R-squared': [model.rsquared]            # R-squared
+        })], ignore_index=True)
+
+# 顯示結果
+print("\n四因子迴歸分析結果（固定 Skewness、Kurtosis 和 Std）：")
+print(quadvariate_regression_results.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 將結果儲存為 CSV
+quadvariate_regression_results.to_csv('quadvariate regression results.csv', index=False, encoding='utf-8-sig')
+print(f"\n四因子迴歸分析結果已儲存至 quadvariate regression results.csv")
 
 '''
 # 針對 T Return, Skewness, Kurtosis 欄位，將小於 -3 與大於 3 的資料列刪除
@@ -1381,6 +2284,71 @@ model = sm.OLS(y, X_4).fit()
 # 印出迴歸結果
 print("迴歸分析結果：")
 print(model.summary())
+
+# 建立一個 DataFrame 來儲存迴歸結果
+regression_results = pd.DataFrame(columns=[
+    'Variable',
+    'Coefficient',
+    'Std Error',
+    'T-Stat',
+    'P-Value',
+    'Significance'
+])
+
+# 取得模型結果
+variables = ['const', 'Kurtosis', 'Median', 'Fear and Greed Index']
+coefficients = model.params
+std_errors = model.bse
+t_stats = model.tvalues
+p_values = model.pvalues
+
+# 判斷顯著性
+def get_significance(p_value):
+    if p_value < 0.01:
+        return '***'
+    elif p_value < 0.05:
+        return '**'
+    elif p_value < 0.1:
+        return '*'
+    return ''
+
+# 整理結果
+for var in variables:
+    idx = variables.index(var)
+    regression_results = pd.concat([regression_results, pd.DataFrame({
+        'Variable': [var],
+        'Coefficient': [coefficients[idx]],
+        'Std Error': [std_errors[idx]],
+        'T-Stat': [t_stats[idx]],
+        'P-Value': [p_values[idx]],
+        'Significance': [get_significance(p_values[idx])]
+    })], ignore_index=True)
+
+# 加入模型整體統計量
+model_stats = pd.DataFrame({
+    'Metric': ['R-squared', 'Adj. R-squared', 'F-statistic', 'Prob (F-statistic)', 'Number of Observations'],
+    'Value': [
+        model.rsquared,
+        model.rsquared_adj,
+        model.fvalue,
+        model.f_pvalue,
+        model.nobs
+    ]
+})
+
+# 顯示結果
+print("\n迴歸係數及顯著性：")
+print(regression_results.round(4))
+print("\n模型統計量：")
+print(model_stats.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 儲存結果
+# regression_results.to_csv('regression_model_coefficients.csv', index=False, encoding='utf-8-sig')
+# model_stats.to_csv('regression_model_statistics.csv', index=False, encoding='utf-8-sig')
 
 ###########################################################
 
@@ -1605,8 +2573,8 @@ print("\n變數的敘述統計：")
 print(stats_summary.round(4))
 
 # 將結果儲存為 CSV
-stats_summary.to_csv(f'descriptive_stats.csv', encoding='utf-8-sig')
-print(f"\n敘述統計結果已儲存至 descriptive_stats.csv")
+stats_summary.to_csv(f'descriptive stats.csv', encoding='utf-8-sig')
+print(f"\n敘述統計結果已儲存至 descriptive stats.csv")
 
 # 將所有數據進行標準化
 variables_to_standardize = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 
@@ -1616,6 +2584,304 @@ for var in variables_to_standardize:
     mean = df_regression_week_stats_with_returns[var].mean()
     std = df_regression_week_stats_with_returns[var].std()
     df_regression_week_stats_with_returns[var] = (df_regression_week_stats_with_returns[var] - mean) / std
+
+# 單因子迴歸分析
+# 建立一個 DataFrame 來儲存迴歸結果
+univariate_regression_results = pd.DataFrame(columns=['Variable', 'Coefficient', 'p value','Significance', 'R-squared'])
+
+# 設定 Y 變數
+y = df_regression_week_stats_with_returns['T Return']
+
+# 對每個 X 變數進行簡單迴歸
+for var in variables_to_standardize:
+    if var != 'T Return':  # 排除 Y 變數
+        # 準備 X 變數
+        X = df_regression_week_stats_with_returns[var]
+        X = sm.add_constant(X)  # 加入常數項
+
+        # 執行迴歸
+        model = sm.OLS(y, X).fit()
+        
+        # 判斷顯著水準
+        p_value = model.pvalues[1]
+        if p_value < 0.01:
+            significance = '***'
+        elif p_value < 0.05:
+            significance = '**'
+        elif p_value < 0.1:
+            significance = '*'
+        else:
+            significance = ''
+
+        # 儲存結果
+        univariate_regression_results = pd.concat([univariate_regression_results, pd.DataFrame({
+            'Variable': [var],
+            'Coefficient': [model.params[1]],  # 係數
+            'p value': [model.pvalues[1]],    # p value
+            'Significance': [significance],   # 顯著水準
+            'R-squared': [model.rsquared]     # R-squared
+        })], ignore_index=True)
+
+# 顯示結果
+print("\n簡單迴歸分析結果：")
+print(univariate_regression_results.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 將結果儲存為 CSV
+univariate_regression_results.to_csv('univariate regression results.csv', index=False, encoding='utf-8-sig')
+print(f"\n簡單迴歸分析結果已儲存至 univariate regression results.csv")
+
+# 二因子迴歸分析（固定 Skewness）
+# 建立一個 DataFrame 來儲存迴歸結果
+bivariate_regression_results = pd.DataFrame(columns=[
+    'Variable', 
+    'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
+    'Variable_Coef', 'Variable_p', 'Variable_Sig',
+    'R-squared'
+])
+
+# 設定 Y 變數
+y = df_regression_week_stats_with_returns['T Return']
+
+# 對每個 X 變數進行二因子迴歸（與 Skewness 配對）
+for var in variables_to_standardize:
+    if var not in ['T Return', 'Skewness']:  # 排除 Y 變數和 Skewness
+        # 準備 X 變數
+        X = df_regression_week_stats_with_returns[['Skewness', var]]
+        X = sm.add_constant(X)  # 加入常數項
+        
+        # 執行迴歸
+        model = sm.OLS(y, X).fit()
+        
+        # 判斷 Skewness 的顯著水準
+        p_value_skew = model.pvalues[1]
+        if p_value_skew < 0.01:
+            sig_skew = '***'
+        elif p_value_skew < 0.05:
+            sig_skew = '**'
+        elif p_value_skew < 0.1:
+            sig_skew = '*'
+        else:
+            sig_skew = ''
+            
+        # 判斷另一個變數的顯著水準
+        p_value_var = model.pvalues[2]
+        if p_value_var < 0.01:
+            sig_var = '***'
+        elif p_value_var < 0.05:
+            sig_var = '**'
+        elif p_value_var < 0.1:
+            sig_var = '*'
+        else:
+            sig_var = ''
+
+        # 儲存結果
+        bivariate_regression_results = pd.concat([bivariate_regression_results, pd.DataFrame({
+            'Variable': [var],
+            'Skewness_Coef': [model.params[1]],     # Skewness 係數
+            'Skewness_p': [p_value_skew],           # Skewness p-value
+            'Skewness_Sig': [sig_skew],             # Skewness 顯著性
+            'Variable_Coef': [model.params[2]],      # 變數係數
+            'Variable_p': [p_value_var],             # 變數 p-value
+            'Variable_Sig': [sig_var],               # 變數顯著性
+            'R-squared': [model.rsquared]            # R-squared
+        })], ignore_index=True)
+
+# 顯示結果
+print("\n二因子迴歸分析結果（固定 Skewness）：")
+print(bivariate_regression_results.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 將結果儲存為 CSV
+bivariate_regression_results.to_csv('bivariate regression results.csv', index=False, encoding='utf-8-sig')
+print(f"\n二因子迴歸分析結果已儲存至 bivariate regression results.csv")
+
+# 三因子迴歸分析（固定 Skewness 和 Kurtosis）
+# 建立一個 DataFrame 來儲存迴歸結果
+trivariate_regression_results = pd.DataFrame(columns=[
+    'Variable',
+    'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
+    'Kurtosis_Coef', 'Kurtosis_p', 'Kurtosis_Sig',
+    'Variable_Coef', 'Variable_p', 'Variable_Sig',
+    'R-squared'
+])
+
+# 設定 Y 變數
+y = df_regression_week_stats_with_returns['T Return']
+
+# 對每個 X 變數進行三因子迴歸（與 Skewness, Kurtosis 配對）
+for var in variables_to_standardize:
+    if var not in ['T Return', 'Skewness', 'Kurtosis']:  # 排除 Y 變數、Skewness 和 Kurtosis
+        # 準備 X 變數
+        X = df_regression_week_stats_with_returns[['Skewness', 'Kurtosis', var]]
+        X = sm.add_constant(X)  # 加入常數項
+        
+        # 執行迴歸
+        model = sm.OLS(y, X).fit()
+        
+        # 判斷 Skewness 的顯著水準
+        p_value_skew = model.pvalues[1]
+        if p_value_skew < 0.01:
+            sig_skew = '***'
+        elif p_value_skew < 0.05:
+            sig_skew = '**'
+        elif p_value_skew < 0.1:
+            sig_skew = '*'
+        else:
+            sig_skew = ''
+            
+        # 判斷 Kurtosis 的顯著水準
+        p_value_kurt = model.pvalues[2]
+        if p_value_kurt < 0.01:
+            sig_kurt = '***'
+        elif p_value_kurt < 0.05:
+            sig_kurt = '**'
+        elif p_value_kurt < 0.1:
+            sig_kurt = '*'
+        else:
+            sig_kurt = ''
+            
+        # 判斷第三個變數的顯著水準
+        p_value_var = model.pvalues[3]
+        if p_value_var < 0.01:
+            sig_var = '***'
+        elif p_value_var < 0.05:
+            sig_var = '**'
+        elif p_value_var < 0.1:
+            sig_var = '*'
+        else:
+            sig_var = ''
+
+        # 儲存結果
+        trivariate_regression_results = pd.concat([trivariate_regression_results, pd.DataFrame({
+            'Variable': [var],
+            'Skewness_Coef': [model.params[1]],     # Skewness 係數
+            'Skewness_p': [p_value_skew],           # Skewness p-value
+            'Skewness_Sig': [sig_skew],             # Skewness 顯著性
+            'Kurtosis_Coef': [model.params[2]],     # Kurtosis 係數
+            'Kurtosis_p': [p_value_kurt],           # Kurtosis p-value
+            'Kurtosis_Sig': [sig_kurt],             # Kurtosis 顯著性
+            'Variable_Coef': [model.params[3]],      # 變數係數
+            'Variable_p': [p_value_var],             # 變數 p-value
+            'Variable_Sig': [sig_var],               # 變數顯著性
+            'R-squared': [model.rsquared]            # R-squared
+        })], ignore_index=True)
+
+# 顯示結果
+print("\n三因子迴歸分析結果（固定 Skewness 和 Kurtosis）：")
+print(trivariate_regression_results.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 將結果儲存為 CSV
+trivariate_regression_results.to_csv('trivariate regression results.csv', index=False, encoding='utf-8-sig')
+print(f"\n三因子迴歸分析結果已儲存至 trivariate regression results.csv")
+
+# 四因子迴歸分析（固定 Skewness、Kurtosis 和 Std）
+# 建立一個 DataFrame 來儲存迴歸結果
+quadvariate_regression_results = pd.DataFrame(columns=[
+    'Variable',
+    'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
+    'Kurtosis_Coef', 'Kurtosis_p', 'Kurtosis_Sig',
+    'Std_Coef', 'Std_p', 'Std_Sig',
+    'Variable_Coef', 'Variable_p', 'Variable_Sig',
+    'R-squared'
+])
+
+# 設定 Y 變數
+y = df_regression_week_stats_with_returns['T Return']
+
+# 對每個 X 變數進行四因子迴歸（與 Skewness, Kurtosis, Std 配對）
+for var in variables_to_standardize:
+    if var not in ['T Return', 'Skewness', 'Kurtosis', 'Std']:  # 排除 Y 變數和固定的三個因子
+        # 準備 X 變數
+        X = df_regression_week_stats_with_returns[['Skewness', 'Kurtosis', 'Std', var]]
+        X = sm.add_constant(X)  # 加入常數項
+        
+        # 執行迴歸
+        model = sm.OLS(y, X).fit()
+        
+        # 判斷 Skewness 的顯著水準
+        p_value_skew = model.pvalues[1]
+        if p_value_skew < 0.01:
+            sig_skew = '***'
+        elif p_value_skew < 0.05:
+            sig_skew = '**'
+        elif p_value_skew < 0.1:
+            sig_skew = '*'
+        else:
+            sig_skew = ''
+            
+        # 判斷 Kurtosis 的顯著水準
+        p_value_kurt = model.pvalues[2]
+        if p_value_kurt < 0.01:
+            sig_kurt = '***'
+        elif p_value_kurt < 0.05:
+            sig_kurt = '**'
+        elif p_value_kurt < 0.1:
+            sig_kurt = '*'
+        else:
+            sig_kurt = ''
+            
+        # 判斷 Std 的顯著水準
+        p_value_std = model.pvalues[3]
+        if p_value_std < 0.01:
+            sig_std = '***'
+        elif p_value_std < 0.05:
+            sig_std = '**'
+        elif p_value_std < 0.1:
+            sig_std = '*'
+        else:
+            sig_std = ''
+            
+        # 判斷第四個變數的顯著水準
+        p_value_var = model.pvalues[4]
+        if p_value_var < 0.01:
+            sig_var = '***'
+        elif p_value_var < 0.05:
+            sig_var = '**'
+        elif p_value_var < 0.1:
+            sig_var = '*'
+        else:
+            sig_var = ''
+
+        # 儲存結果
+        quadvariate_regression_results = pd.concat([quadvariate_regression_results, pd.DataFrame({
+            'Variable': [var],
+            'Skewness_Coef': [model.params[1]],     # Skewness 係數
+            'Skewness_p': [p_value_skew],           # Skewness p-value
+            'Skewness_Sig': [sig_skew],             # Skewness 顯著性
+            'Kurtosis_Coef': [model.params[2]],     # Kurtosis 係數
+            'Kurtosis_p': [p_value_kurt],           # Kurtosis p-value
+            'Kurtosis_Sig': [sig_kurt],             # Kurtosis 顯著性
+            'Std_Coef': [model.params[3]],          # Std 係數
+            'Std_p': [p_value_std],                 # Std p-value
+            'Std_Sig': [sig_std],                   # Std 顯著性
+            'Variable_Coef': [model.params[4]],      # 變數係數
+            'Variable_p': [p_value_var],             # 變數 p-value
+            'Variable_Sig': [sig_var],               # 變數顯著性
+            'R-squared': [model.rsquared]            # R-squared
+        })], ignore_index=True)
+
+# 顯示結果
+print("\n四因子迴歸分析結果（固定 Skewness、Kurtosis 和 Std）：")
+print(quadvariate_regression_results.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 將結果儲存為 CSV
+quadvariate_regression_results.to_csv('quadvariate regression results.csv', index=False, encoding='utf-8-sig')
+print(f"\n四因子迴歸分析結果已儲存至 quadvariate regression results.csv")
 
 '''
 # 針對所有變數進行 ADF 檢定
@@ -1722,6 +2988,71 @@ model = sm.OLS(y, X_4).fit()
 # 印出迴歸結果
 print("迴歸分析結果：")
 print(model.summary())
+
+# 建立一個 DataFrame 來儲存迴歸結果
+regression_results = pd.DataFrame(columns=[
+    'Variable',
+    'Coefficient',
+    'Std Error',
+    'T-Stat',
+    'P-Value',
+    'Significance'
+])
+
+# 取得模型結果
+variables = ['const', 'Kurtosis', 'Median', 'Fear and Greed Index']
+coefficients = model.params
+std_errors = model.bse
+t_stats = model.tvalues
+p_values = model.pvalues
+
+# 判斷顯著性
+def get_significance(p_value):
+    if p_value < 0.01:
+        return '***'
+    elif p_value < 0.05:
+        return '**'
+    elif p_value < 0.1:
+        return '*'
+    return ''
+
+# 整理結果
+for var in variables:
+    idx = variables.index(var)
+    regression_results = pd.concat([regression_results, pd.DataFrame({
+        'Variable': [var],
+        'Coefficient': [coefficients[idx]],
+        'Std Error': [std_errors[idx]],
+        'T-Stat': [t_stats[idx]],
+        'P-Value': [p_values[idx]],
+        'Significance': [get_significance(p_values[idx])]
+    })], ignore_index=True)
+
+# 加入模型整體統計量
+model_stats = pd.DataFrame({
+    'Metric': ['R-squared', 'Adj. R-squared', 'F-statistic', 'Prob (F-statistic)', 'Number of Observations'],
+    'Value': [
+        model.rsquared,
+        model.rsquared_adj,
+        model.fvalue,
+        model.f_pvalue,
+        model.nobs
+    ]
+})
+
+# 顯示結果
+print("\n迴歸係數及顯著性：")
+print(regression_results.round(4))
+print("\n模型統計量：")
+print(model_stats.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 儲存結果
+# regression_results.to_csv('regression_model_coefficients.csv', index=False, encoding='utf-8-sig')
+# model_stats.to_csv('regression_model_statistics.csv', index=False, encoding='utf-8-sig')
 
 ###########################################################
 
