@@ -29,7 +29,6 @@ from mypackage.bs import *
 from mypackage.marketIV import *
 from mypackage.moment import *
 
-
 nest_asyncio.apply()
 warnings.filterwarnings("ignore")
 pd.set_option("display.max_rows", 30)
@@ -412,8 +411,6 @@ output_filename = f'RND_regression_day_stats_with_returns_一個點_{today}.csv'
 df_regression_day_stats_filtered.to_csv(output_filename, index=False, encoding='utf-8-sig')
 print(f"\n已將結果儲存至 {output_filename}")
 
-
-''' 執行迴歸分析_每天_一個點方法 '''
 # 讀取資料
 # 檔名日期需自行更改
 df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_with_returns_一個點.csv')
@@ -442,6 +439,16 @@ df_regression_day_stats_with_returns.rename(columns={'value': 'Fear and Greed In
 missing_values = df_regression_day_stats_with_returns['Fear and Greed Index'].isna().sum()
 print(f"Fear and Greed Index 中的缺失值數量：{missing_values}")
 
+# 將結果儲存為 CSV
+output_filename = f'RND_regression_day_stats_all_data_一個點_{today}.csv'
+df_regression_day_stats_with_returns.to_csv(output_filename, index=False, encoding='utf-8-sig')
+print(f"\n已將結果儲存至 {output_filename}")
+
+
+''' 執行迴歸分析_每天_一個點方法 '''
+# 讀取資料
+df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_all_data_一個點_2025-01-15.csv')
+
 # 對所有數值變數進行敘述統計
 numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
 stats_summary = df_regression_day_stats_with_returns[numeric_columns].describe().T
@@ -454,17 +461,136 @@ print(stats_summary.round(4))
 stats_summary.to_csv(f'descriptive_stats.csv', encoding='utf-8-sig')
 print(f"\n敘述統計結果已儲存至 descriptive_stats.csv")
 
-'''
 # 將所有數據進行標準化
-variables_to_standardize = ['Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 
-                            'T Return', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
+variables_to_standardize = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 
+                            'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
 
 for var in variables_to_standardize:
     mean = df_regression_day_stats_with_returns[var].mean()
     std = df_regression_day_stats_with_returns[var].std()
     df_regression_day_stats_with_returns[var] = (df_regression_day_stats_with_returns[var] - mean) / std
-'''
 
+# 單因子迴歸分析
+# 建立一個 DataFrame 來儲存迴歸結果
+univariate_regression_results = pd.DataFrame(columns=['Variable', 'Coefficient', 'p value','Significance', 'R-squared'])
+
+# 設定 Y 變數
+y = df_regression_day_stats_with_returns['T Return']
+
+# 對每個 X 變數進行簡單迴歸
+for var in variables_to_standardize:
+    if var != 'T Return':  # 排除 Y 變數
+        # 準備 X 變數
+        X = df_regression_day_stats_with_returns[var]
+        X = sm.add_constant(X)  # 加入常數項
+        
+        # 執行迴歸
+        model = sm.OLS(y, X).fit()
+        
+        # 判斷顯著水準
+        p_value = model.pvalues[1]
+        if p_value < 0.01:
+            significance = '***'
+        elif p_value < 0.05:
+            significance = '**'
+        elif p_value < 0.1:
+            significance = '*'
+        else:
+            significance = ''
+
+        # 儲存結果
+        univariate_regression_results = pd.concat([univariate_regression_results, pd.DataFrame({
+            'Variable': [var],
+            'Coefficient': [model.params[1]],  # 係數
+            'p value': [model.pvalues[1]],    # p value
+            'Significance': [significance],   # 顯著水準
+            'R-squared': [model.rsquared]     # R-squared
+        })], ignore_index=True)
+
+# 顯示結果
+print("\n簡單迴歸分析結果：")
+print(univariate_regression_results.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 將結果儲存為 CSV
+univariate_regression_results.to_csv(f'univariate_regression_results.csv', index=False, encoding='utf-8-sig')
+print(f"\n簡單迴歸分析結果已儲存至 univariate_regression_results.csv")
+
+# 二因子迴歸分析（固定 Skewness）
+# 建立一個 DataFrame 來儲存迴歸結果
+bivariate_regression_results = pd.DataFrame(columns=[
+    'Variable', 
+    'Skewness_Coef', 'Skewness_P', 'Skewness_Sig',
+    'Variable_Coef', 'Variable_P', 'Variable_Sig',
+    'R-squared'
+])
+
+# 設定 Y 變數
+y = df_regression_day_stats_with_returns['T Return']
+
+# 對每個 X 變數進行二因子迴歸（與 Skewness 配對）
+for var in variables_to_standardize:
+    if var not in ['T Return', 'Skewness']:  # 排除 Y 變數和 Skewness
+        # 準備 X 變數
+        X = df_regression_day_stats_with_returns[['Skewness', var]]
+        X = sm.add_constant(X)  # 加入常數項
+        
+        # 執行迴歸
+        model = sm.OLS(y, X).fit()
+        
+        # 判斷 Skewness 的顯著水準
+        p_value_skew = model.pvalues[1]
+        if p_value_skew < 0.01:
+            sig_skew = '***'
+        elif p_value_skew < 0.05:
+            sig_skew = '**'
+        elif p_value_skew < 0.1:
+            sig_skew = '*'
+        else:
+            sig_skew = ''
+            
+        # 判斷另一個變數的顯著水準
+        p_value_var = model.pvalues[2]
+        if p_value_var < 0.01:
+            sig_var = '***'
+        elif p_value_var < 0.05:
+            sig_var = '**'
+        elif p_value_var < 0.1:
+            sig_var = '*'
+        else:
+            sig_var = ''
+
+        # 儲存結果
+        bivariate_regression_results = pd.concat([bivariate_regression_results, pd.DataFrame({
+            'Variable': [var],
+            'Skewness_Coef': [model.params[1]],     # Skewness 係數
+            'Skewness_P': [p_value_skew],           # Skewness p-value
+            'Skewness_Sig': [sig_skew],             # Skewness 顯著性
+            'Variable_Coef': [model.params[2]],      # 變數係數
+            'Variable_P': [p_value_var],             # 變數 p-value
+            'Variable_Sig': [sig_var],               # 變數顯著性
+            'R-squared': [model.rsquared]            # R-squared
+        })], ignore_index=True)
+
+# 將結果按 Variable_P 排序
+bivariate_regression_results = bivariate_regression_results.sort_values('Variable_P')
+
+# 顯示結果
+print("\n二因子迴歸分析結果（固定 Skewness）：")
+print(bivariate_regression_results.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 將結果儲存為 CSV
+bivariate_regression_results.to_csv(f'bivariate_regression_results.csv', index=False, encoding='utf-8-sig')
+print(f"\n二因子迴歸分析結果已儲存至 bivariate_regression_results.csv")
+
+'''
 # 針對 T Return, Skewness, Kurtosis 欄位，將小於 -3 與大於 3 的資料列刪除
 # df_regression_day_stats_with_returns = df_regression_day_stats_with_returns[(df_regression_day_stats_with_returns['T Return'] >= -2) & (df_regression_day_stats_with_returns['T Return'] <= 2)]
 # df_regression_day_stats_with_returns = df_regression_day_stats_with_returns[(df_regression_day_stats_with_returns['Skewness'] >= -2) & (df_regression_day_stats_with_returns['Skewness'] <= 2)]
@@ -498,10 +624,11 @@ with open(f'adf_results_day_一個點_{today}.txt', 'w', encoding='utf-8') as f:
         f.write(f"變數：{var}\n")
         f.write(f"p-value：{result[1]:.4f}\n")
         f.write("結論：" + ("該序列為定態序列" if result[1] < 0.05 else "該序列為非定態序列") + "\n\n")
+'''
 
 ###########################################################
 
-# 準備迴歸變數
+# 準備迴歸變數，用這個模型
 X_1 = df_regression_day_stats_with_returns[[
     'Skewness', 'Median',
     'T-4 Return'
@@ -744,8 +871,6 @@ output_filename = f'RND_regression_day_stats_with_returns_兩個點_{today}.csv'
 df_regression_day_stats_filtered.to_csv(output_filename, index=False, encoding='utf-8-sig')
 print(f"\n已將結果儲存至 {output_filename}")
 
-
-''' 執行迴歸分析_每天_兩個點方法 '''
 # 讀取資料
 # 檔名日期需自行更改
 df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_with_returns_兩個點.csv')
@@ -774,17 +899,39 @@ df_regression_day_stats_with_returns.rename(columns={'value': 'Fear and Greed In
 missing_values = df_regression_day_stats_with_returns['Fear and Greed Index'].isna().sum()
 print(f"Fear and Greed Index 中的缺失值數量：{missing_values}")
 
-'''
+# 將結果儲存為 CSV
+output_filename = f'RND_regression_day_stats_all_data_兩個點_{today}.csv'
+df_regression_day_stats_with_returns.to_csv(output_filename, index=False, encoding='utf-8-sig')
+print(f"\n已將結果儲存至 {output_filename}")
+
+
+
+''' 執行迴歸分析_每天_兩個點方法 '''
+# 讀取資料
+df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_all_data_兩個點_2025-01-15.csv')
+
+# 對所有數值變數進行敘述統計
+numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
+stats_summary = df_regression_day_stats_with_returns[numeric_columns].describe().T
+
+# 顯示結果
+print("\n變數的敘述統計：")
+print(stats_summary.round(4))
+
+# 將結果儲存為 CSV
+stats_summary.to_csv(f'descriptive_stats.csv', encoding='utf-8-sig')
+print(f"\n敘述統計結果已儲存至 descriptive_stats.csv")
+
 # 將所有數據進行標準化
-variables_to_standardize = ['Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index', 
-                            'T Return', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
+variables_to_standardize = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 
+                            'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
 
 for var in variables_to_standardize:
     mean = df_regression_day_stats_with_returns[var].mean()
     std = df_regression_day_stats_with_returns[var].std()
     df_regression_day_stats_with_returns[var] = (df_regression_day_stats_with_returns[var] - mean) / std
-'''
 
+'''
 # 針對所有變數進行 ADF 檢定
 variables = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
             'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
@@ -813,11 +960,11 @@ with open(f'adf_results_day_兩個點_{today}.txt', 'w', encoding='utf-8') as f:
         f.write(f"變數：{var}\n")
         f.write(f"p-value：{result[1]:.4f}\n")
         f.write("結論：" + ("該序列為定態序列" if result[1] < 0.05 else "該序列為非定態序列") + "\n\n")
-
+'''
 
 ###########################################################
 
-# 準備迴歸變數
+# 準備迴歸變數，用這個模型
 X_1 = df_regression_day_stats_with_returns[[
     'Skewness', 'Median',
     'T-4 Return'
@@ -1067,8 +1214,6 @@ output_filename = f'RND_regression_week_stats_with_returns_一個點_{today}.csv
 df_regression_week_stats_filtered.to_csv(output_filename, index=False, encoding='utf-8-sig')
 print(f"\n已將結果儲存至 {output_filename}")
 
-
-''' 執行迴歸分析_每週_一個點方法 '''
 # 讀取資料
 # 檔名日期需自行更改
 df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_with_returns_一個點_2025-01-14.csv')
@@ -1097,21 +1242,42 @@ df_regression_week_stats_with_returns.rename(columns={'value': 'Fear and Greed I
 missing_values = df_regression_week_stats_with_returns['Fear and Greed Index'].isna().sum()
 print(f"Fear and Greed Index 中的缺失值數量：{missing_values}")
 
-'''
+# 將結果儲存為 CSV
+output_filename = f'RND_regression_week_stats_all_data_一個點_{today}.csv'
+df_regression_week_stats_with_returns.to_csv(output_filename, index=False, encoding='utf-8-sig')
+print(f"\n已將結果儲存至 {output_filename}")
+
+
+''' 執行迴歸分析_每週_一個點方法 '''
+# 讀取資料
+df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_all_data_一個點_2025-01-15.csv')
+
+# 對所有數值變數進行敘述統計
+numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
+stats_summary = df_regression_week_stats_with_returns[numeric_columns].describe().T
+
+# 顯示結果
+print("\n變數的敘述統計：")
+print(stats_summary.round(4))
+
+# 將結果儲存為 CSV
+stats_summary.to_csv(f'descriptive_stats.csv', encoding='utf-8-sig')
+print(f"\n敘述統計結果已儲存至 descriptive_stats.csv")
+
 # 將所有數據進行標準化
-variables_to_standardize = ['Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index', 
-                            'T Return', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
+variables_to_standardize = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 
+                            'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
 
 for var in variables_to_standardize:
     mean = df_regression_week_stats_with_returns[var].mean()
     std = df_regression_week_stats_with_returns[var].std()
     df_regression_week_stats_with_returns[var] = (df_regression_week_stats_with_returns[var] - mean) / std
-'''
 
+'''
 # 針對 T Return, Skewness, Kurtosis 欄位，將小於 -3 與大於 3 的資料列刪除
 # df_regression_week_stats_with_returns = df_regression_week_stats_with_returns[(df_regression_week_stats_with_returns['T Return'] >= -2) & (df_regression_week_stats_with_returns['T Return'] <= 2)]
-df_regression_week_stats_with_returns = df_regression_week_stats_with_returns[(df_regression_week_stats_with_returns['Skewness'] >= -2) & (df_regression_week_stats_with_returns['Skewness'] <= 2)]
-df_regression_week_stats_with_returns = df_regression_week_stats_with_returns[(df_regression_week_stats_with_returns['Kurtosis'] >= -2) & (df_regression_week_stats_with_returns['Kurtosis'] <= 2)]
+# df_regression_week_stats_with_returns = df_regression_week_stats_with_returns[(df_regression_week_stats_with_returns['Skewness'] >= -2) & (df_regression_week_stats_with_returns['Skewness'] <= 2)]
+#df_regression_week_stats_with_returns = df_regression_week_stats_with_returns[(df_regression_week_stats_with_returns['Kurtosis'] >= -2) & (df_regression_week_stats_with_returns['Kurtosis'] <= 2)]
 
 # 針對所有變數進行 ADF 檢定
 variables = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
@@ -1141,6 +1307,7 @@ with open(f'adf_results_week_一個點_{today}.txt', 'w', encoding='utf-8') as f
         f.write(f"變數：{var}\n")
         f.write(f"p-value：{result[1]:.4f}\n")
         f.write("結論：" + ("該序列為定態序列" if result[1] < 0.05 else "該序列為非定態序列") + "\n\n")
+'''
 
 ###########################################################
 
@@ -1199,7 +1366,7 @@ print(model.summary())
 
 ###########################################################
 
-# 準備迴歸變數
+# 準備迴歸變數，用這個模型
 X_4 = df_regression_week_stats_with_returns[[
      'Kurtosis', 'Median', 'Fear and Greed Index',
 ]]
@@ -1391,8 +1558,6 @@ output_filename = f'RND_regression_week_stats_with_returns_兩個點_{today}.csv
 df_regression_week_stats_filtered.to_csv(output_filename, index=False, encoding='utf-8-sig')
 print(f"\n已將結果儲存至 {output_filename}")
 
-
-''' 執行迴歸分析_每週_兩個點方法 '''
 # 讀取資料
 # 檔名日期需自行更改
 df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_with_returns_兩個點_2025-01-14.csv')
@@ -1421,13 +1586,38 @@ df_regression_week_stats_with_returns.rename(columns={'value': 'Fear and Greed I
 missing_values = df_regression_week_stats_with_returns['Fear and Greed Index'].isna().sum()
 print(f"Fear and Greed Index 中的缺失值數量：{missing_values}")
 
-'''
-# 將平均值、標準差及 Fear and Greed Index 進行標準化
-df_regression_week_stats_with_returns['Mean'] = (df_regression_week_stats_with_returns['Mean'] - df_regression_week_stats_with_returns['Mean'].mean()) / df_regression_week_stats_with_returns['Mean'].std()
-df_regression_week_stats_with_returns['Std'] = (df_regression_week_stats_with_returns['Std'] - df_regression_week_stats_with_returns['Std'].mean()) / df_regression_week_stats_with_returns['Std'].std()
-df_regression_week_stats_with_returns['Fear and Greed Index'] = (df_regression_week_stats_with_returns['Fear and Greed Index'] - df_regression_week_stats_with_returns['Fear and Greed Index'].mean()) / df_regression_week_stats_with_returns['Fear and Greed Index'].std()
-'''
+# 將結果儲存為 CSV
+output_filename = f'RND_regression_week_stats_all_data_兩個點_{today}.csv'
+df_regression_week_stats_with_returns.to_csv(output_filename, index=False, encoding='utf-8-sig')
+print(f"\n已將結果儲存至 {output_filename}")
 
+
+''' 執行迴歸分析_每週_兩個點方法 '''
+# 讀取資料
+df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_all_data_兩個點_2025-01-15.csv')
+
+# 對所有數值變數進行敘述統計
+numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
+stats_summary = df_regression_week_stats_with_returns[numeric_columns].describe().T
+
+# 顯示結果
+print("\n變數的敘述統計：")
+print(stats_summary.round(4))
+
+# 將結果儲存為 CSV
+stats_summary.to_csv(f'descriptive_stats.csv', encoding='utf-8-sig')
+print(f"\n敘述統計結果已儲存至 descriptive_stats.csv")
+
+# 將所有數據進行標準化
+variables_to_standardize = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 
+                            'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
+
+for var in variables_to_standardize:
+    mean = df_regression_week_stats_with_returns[var].mean()
+    std = df_regression_week_stats_with_returns[var].std()
+    df_regression_week_stats_with_returns[var] = (df_regression_week_stats_with_returns[var] - mean) / std
+
+'''
 # 針對所有變數進行 ADF 檢定
 variables = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
             'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
@@ -1456,6 +1646,7 @@ with open(f'adf_results_week_兩個點_{today}.txt', 'w', encoding='utf-8') as f
         f.write(f"變數：{var}\n")
         f.write(f"p-value：{result[1]:.4f}\n")
         f.write("結論：" + ("該序列為定態序列" if result[1] < 0.05 else "該序列為非定態序列") + "\n\n")
+'''
 
 ###########################################################
 
@@ -1516,7 +1707,7 @@ print(model.summary())
 
 ###########################################################
 
-# 準備迴歸變數
+# 準備迴歸變數，用這個模型
 X_4 = df_regression_week_stats_with_returns[[
      'Kurtosis', 'Median', 'Fear and Greed Index',
 ]]
