@@ -475,7 +475,7 @@ print(f"\n已將結果儲存至 {output_filename}")
 
 ''' 執行迴歸分析_每天_一個點方法 '''
 # 讀取資料
-df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_all_data_一個點_2025-01-15.csv')
+df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_all_data_一個點_2025-01-16.csv')
 
 # 對所有數值變數進行敘述統計
 numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index','VIX', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
@@ -916,12 +916,110 @@ print("*   : p < 0.1")
 # regression_results.to_csv('regression_model_coefficients.csv', index=False, encoding='utf-8-sig')
 # model_stats.to_csv('regression_model_statistics.csv', index=False, encoding='utf-8-sig')
 
+# 基於這個模型的四因子迴歸分析（固定 Skewness、Median 和 T-4 Return）
+# 建立一個 DataFrame 來儲存迴歸結果
+quadvariate_regression_results = pd.DataFrame(columns=[
+    'Variable',
+    'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
+    'Median_Coef', 'Median_p', 'Median_Sig',
+    'T-4 Return_Coef', 'T-4 Return_p', 'T-4 Return_Sig',
+    'Variable_Coef', 'Variable_p', 'Variable_Sig',
+    'R-squared'
+])
+
+# 設定 Y 變數
+y = df_regression_day_stats_with_returns['T Return']
+
+# 對每個 X 變數進行四因子迴歸（與 Skewness, Median, T-4 Return 配對）
+for var in variables_to_standardize:
+    if var not in ['T Return', 'Skewness', 'Median', 'T-4 Return']:  # 排除 Y 變數和固定的三個因子
+        # 準備 X 變數
+        X = df_regression_day_stats_with_returns[['Skewness', 'Median', 'T-4 Return', var]]
+        X = sm.add_constant(X)  # 加入常數項
+        
+        # 執行迴歸
+        model = sm.OLS(y, X).fit()
+        
+        # 判斷 Skewness 的顯著水準
+        p_value_skew = model.pvalues[1]
+        if p_value_skew < 0.01:
+            sig_skew = '***'
+        elif p_value_skew < 0.05:
+            sig_skew = '**'
+        elif p_value_skew < 0.1:
+            sig_skew = '*'
+        else:
+            sig_skew = ''
+            
+        # 判斷 Kurtosis 的顯著水準
+        p_value_kurt = model.pvalues[2]
+        if p_value_kurt < 0.01:
+            sig_kurt = '***'
+        elif p_value_kurt < 0.05:
+            sig_kurt = '**'
+        elif p_value_kurt < 0.1:
+            sig_kurt = '*'
+        else:
+            sig_kurt = ''
+            
+        # 判斷 Std 的顯著水準
+        p_value_std = model.pvalues[3]
+        if p_value_std < 0.01:
+            sig_std = '***'
+        elif p_value_std < 0.05:
+            sig_std = '**'
+        elif p_value_std < 0.1:
+            sig_std = '*'
+        else:
+            sig_std = ''
+            
+        # 判斷第四個變數的顯著水準
+        p_value_var = model.pvalues[4]
+        if p_value_var < 0.01:
+            sig_var = '***'
+        elif p_value_var < 0.05:
+            sig_var = '**'
+        elif p_value_var < 0.1:
+            sig_var = '*'
+        else:
+            sig_var = ''
+
+        # 儲存結果
+        quadvariate_regression_results = pd.concat([quadvariate_regression_results, pd.DataFrame({
+            'Variable': [var],
+            'Skewness_Coef': [model.params[1]],     # Skewness 係數
+            'Skewness_p': [p_value_skew],           # Skewness p-value
+            'Skewness_Sig': [sig_skew],             # Skewness 顯著性
+            'Median_Coef': [model.params[2]],     # Median 係數
+            'Median_p': [p_value_kurt],           # Median p-value
+            'Median_Sig': [sig_kurt],             # Median 顯著性
+            'T-4 Return_Coef': [model.params[3]],          # T-4 Return 係數
+            'T-4 Return_p': [p_value_std],                 # T-4 Return p-value
+            'T-4 Return_Sig': [sig_std],                   # T-4 Return 顯著性
+            'Variable_Coef': [model.params[4]],      # 變數係數
+            'Variable_p': [p_value_var],             # 變數 p-value
+            'Variable_Sig': [sig_var],               # 變數顯著性
+            'R-squared': [model.rsquared]            # R-squared
+        })], ignore_index=True)
+
+# 顯示結果
+print("\n四因子迴歸分析結果（固定 Skewness、Median 和 T-4 Return）：")
+print(quadvariate_regression_results.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 將結果儲存為 CSV
+quadvariate_regression_results.to_csv('quadvariate regression results.csv', index=False, encoding='utf-8-sig')
+print(f"\n四因子迴歸分析結果已儲存至 quadvariate regression results.csv")
+
 ###########################################################
 
 # 準備迴歸變數
 X_2 = df_regression_day_stats_with_returns[[
     'Skewness', 'Median',
-    'T-4 Return'
+    'T-4 Return', 'VIX'
 ]]
 y = df_regression_day_stats_with_returns['T Return']
 
@@ -1146,15 +1244,18 @@ print(f"\n已將結果儲存至 {output_filename}")
 # 檔名日期需自行更改
 df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_with_returns_兩個點.csv')
 df_fear_greed_index = pd.read_csv('Crypto Fear and Greed Index_2020-2024.csv')
+df_vix = pd.read_csv('S&P 500 VIX_2020-2024.csv')
 
-# 將兩個 DataFrame 的日期欄位都轉換為 datetime 格式
+# 將所有 DataFrame 的日期欄位都轉換為 datetime 格式
 df_regression_day_stats_with_returns['Observation Date'] = pd.to_datetime(df_regression_day_stats_with_returns['Observation Date'])
 df_fear_greed_index['date'] = pd.to_datetime(df_fear_greed_index['date'])
+df_vix['日期'] = pd.to_datetime(df_vix['日期'])
 
-# 將 df_fear_greed_index 的 date 設為索引
+# 將 df_fear_greed_index 和 df_vix 的日期欄位設為索引
 df_fear_greed_index.set_index('date', inplace=True)
+df_vix.set_index('日期', inplace=True)
 
-# 使用 merge 來匹配日期
+# 使用 merge 來匹配日期，先合併貪婪指數
 df_regression_day_stats_with_returns = pd.merge(
     df_regression_day_stats_with_returns,
     df_fear_greed_index[['value']],
@@ -1163,12 +1264,37 @@ df_regression_day_stats_with_returns = pd.merge(
     how='left'
 )
 
-# 重命名 value 欄位
-df_regression_day_stats_with_returns.rename(columns={'value': 'Fear and Greed Index'}, inplace=True)
+# 再合併 VIX 指數
+df_regression_day_stats_with_returns = pd.merge(
+    df_regression_day_stats_with_returns,
+    df_vix[['收市']],
+    left_on='Observation Date',
+    right_index=True,
+    how='left'
+)
 
-# 檢查是否有缺失值
-missing_values = df_regression_day_stats_with_returns['Fear and Greed Index'].isna().sum()
-print(f"Fear and Greed Index 中的缺失值數量：{missing_values}")
+# 重命名欄位
+df_regression_day_stats_with_returns.rename(columns={
+    'value': 'Fear and Greed Index',
+    '收市': 'VIX'
+}, inplace=True)
+
+# 檢查合併前的缺失值數量
+print("填補前的缺失值數量：")
+missing_values_fear_greed = df_regression_day_stats_with_returns['Fear and Greed Index'].isna().sum()
+missing_values_vix = df_regression_day_stats_with_returns['VIX'].isna().sum()
+print(f"Fear and Greed Index 中的缺失值數量：{missing_values_fear_greed}")
+print(f"VIX 中的缺失值數量：{missing_values_vix}")
+
+# 使用前後最近的值填補 VIX 的空值
+df_regression_day_stats_with_returns['VIX'] = df_regression_day_stats_with_returns['VIX'].fillna(method='ffill').fillna(method='bfill')
+
+# 檢查填補後的缺失值數量
+print("\n填補後的缺失值數量：")
+missing_values_fear_greed = df_regression_day_stats_with_returns['Fear and Greed Index'].isna().sum()
+missing_values_vix = df_regression_day_stats_with_returns['VIX'].isna().sum()
+print(f"Fear and Greed Index 中的缺失值數量：{missing_values_fear_greed}")
+print(f"VIX 中的缺失值數量：{missing_values_vix}")
 
 # 將結果儲存為 CSV
 output_filename = f'RND_regression_day_stats_all_data_兩個點_{today}.csv'
@@ -1178,10 +1304,10 @@ print(f"\n已將結果儲存至 {output_filename}")
 
 ''' 執行迴歸分析_每天_兩個點方法 '''
 # 讀取資料
-df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_all_data_兩個點_2025-01-15.csv')
+df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_all_data_兩個點_2025-01-16.csv')
 
 # 對所有數值變數進行敘述統計
-numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
+numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index','VIX', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
 stats_summary = df_regression_day_stats_with_returns[numeric_columns].describe().T
 
 # 顯示結果
@@ -1193,7 +1319,7 @@ stats_summary.to_csv('descriptive stats.csv', encoding='utf-8-sig')
 print(f"\n敘述統計結果已儲存至 descriptive stats.csv")
 
 # 將所有數據進行標準化
-variables_to_standardize = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 
+variables_to_standardize = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index','VIX', 
                             'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
 
 for var in variables_to_standardize:
@@ -1614,6 +1740,104 @@ print("*   : p < 0.1")
 # regression_results.to_csv('regression_model_coefficients.csv', index=False, encoding='utf-8-sig')
 # model_stats.to_csv('regression_model_statistics.csv', index=False, encoding='utf-8-sig')
 
+# 基於這個模型的四因子迴歸分析（固定 Skewness、Median 和 T-4 Return）
+# 建立一個 DataFrame 來儲存迴歸結果
+quadvariate_regression_results = pd.DataFrame(columns=[
+    'Variable',
+    'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
+    'Median_Coef', 'Median_p', 'Median_Sig',
+    'T-4 Return_Coef', 'T-4 Return_p', 'T-4 Return_Sig',
+    'Variable_Coef', 'Variable_p', 'Variable_Sig',
+    'R-squared'
+])
+
+# 設定 Y 變數
+y = df_regression_day_stats_with_returns['T Return']
+
+# 對每個 X 變數進行四因子迴歸（與 Skewness, Median, T-4 Return 配對）
+for var in variables_to_standardize:
+    if var not in ['T Return', 'Skewness', 'Median', 'T-4 Return']:  # 排除 Y 變數和固定的三個因子
+        # 準備 X 變數
+        X = df_regression_day_stats_with_returns[['Skewness', 'Median', 'T-4 Return', var]]
+        X = sm.add_constant(X)  # 加入常數項
+        
+        # 執行迴歸
+        model = sm.OLS(y, X).fit()
+        
+        # 判斷 Skewness 的顯著水準
+        p_value_skew = model.pvalues[1]
+        if p_value_skew < 0.01:
+            sig_skew = '***'
+        elif p_value_skew < 0.05:
+            sig_skew = '**'
+        elif p_value_skew < 0.1:
+            sig_skew = '*'
+        else:
+            sig_skew = ''
+            
+        # 判斷 Kurtosis 的顯著水準
+        p_value_kurt = model.pvalues[2]
+        if p_value_kurt < 0.01:
+            sig_kurt = '***'
+        elif p_value_kurt < 0.05:
+            sig_kurt = '**'
+        elif p_value_kurt < 0.1:
+            sig_kurt = '*'
+        else:
+            sig_kurt = ''
+            
+        # 判斷 Std 的顯著水準
+        p_value_std = model.pvalues[3]
+        if p_value_std < 0.01:
+            sig_std = '***'
+        elif p_value_std < 0.05:
+            sig_std = '**'
+        elif p_value_std < 0.1:
+            sig_std = '*'
+        else:
+            sig_std = ''
+            
+        # 判斷第四個變數的顯著水準
+        p_value_var = model.pvalues[4]
+        if p_value_var < 0.01:
+            sig_var = '***'
+        elif p_value_var < 0.05:
+            sig_var = '**'
+        elif p_value_var < 0.1:
+            sig_var = '*'
+        else:
+            sig_var = ''
+
+        # 儲存結果
+        quadvariate_regression_results = pd.concat([quadvariate_regression_results, pd.DataFrame({
+            'Variable': [var],
+            'Skewness_Coef': [model.params[1]],     # Skewness 係數
+            'Skewness_p': [p_value_skew],           # Skewness p-value
+            'Skewness_Sig': [sig_skew],             # Skewness 顯著性
+            'Median_Coef': [model.params[2]],     # Median 係數
+            'Median_p': [p_value_kurt],           # Median p-value
+            'Median_Sig': [sig_kurt],             # Median 顯著性
+            'T-4 Return_Coef': [model.params[3]],          # T-4 Return 係數
+            'T-4 Return_p': [p_value_std],                 # T-4 Return p-value
+            'T-4 Return_Sig': [sig_std],                   # T-4 Return 顯著性
+            'Variable_Coef': [model.params[4]],      # 變數係數
+            'Variable_p': [p_value_var],             # 變數 p-value
+            'Variable_Sig': [sig_var],               # 變數顯著性
+            'R-squared': [model.rsquared]            # R-squared
+        })], ignore_index=True)
+
+# 顯示結果
+print("\n四因子迴歸分析結果（固定 Skewness、Median 和 T-4 Return）：")
+print(quadvariate_regression_results.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 將結果儲存為 CSV
+quadvariate_regression_results.to_csv('quadvariate regression results.csv', index=False, encoding='utf-8-sig')
+print(f"\n四因子迴歸分析結果已儲存至 quadvariate regression results.csv")
+
 ###########################################################
 
 # 準備迴歸變數
@@ -1851,15 +2075,18 @@ print(f"\n已將結果儲存至 {output_filename}")
 # 檔名日期需自行更改
 df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_with_returns_一個點_2025-01-14.csv')
 df_fear_greed_index = pd.read_csv('Crypto Fear and Greed Index_2020-2024.csv')
+df_vix = pd.read_csv('S&P 500 VIX_2020-2024.csv')
 
-# 將兩個 DataFrame 的日期欄位都轉換為 datetime 格式
+# 將所有 DataFrame 的日期欄位都轉換為 datetime 格式
 df_regression_week_stats_with_returns['Observation Date'] = pd.to_datetime(df_regression_week_stats_with_returns['Observation Date'])
 df_fear_greed_index['date'] = pd.to_datetime(df_fear_greed_index['date'])
+df_vix['日期'] = pd.to_datetime(df_vix['日期'])
 
-# 將 df_fear_greed_index 的 date 設為索引
+# 將 df_fear_greed_index 和 df_vix 的日期欄位設為索引
 df_fear_greed_index.set_index('date', inplace=True)
+df_vix.set_index('日期', inplace=True)
 
-# 使用 merge 來匹配日期
+# 使用 merge 來匹配日期，先合併貪婪指數
 df_regression_week_stats_with_returns = pd.merge(
     df_regression_week_stats_with_returns,
     df_fear_greed_index[['value']],
@@ -1868,12 +2095,37 @@ df_regression_week_stats_with_returns = pd.merge(
     how='left'
 )
 
-# 重命名 value 欄位
-df_regression_week_stats_with_returns.rename(columns={'value': 'Fear and Greed Index'}, inplace=True)
+# 再合併 VIX 指數
+df_regression_week_stats_with_returns = pd.merge(
+    df_regression_week_stats_with_returns,
+    df_vix[['收市']],
+    left_on='Observation Date',
+    right_index=True,
+    how='left'
+)
 
-# 檢查是否有缺失值
-missing_values = df_regression_week_stats_with_returns['Fear and Greed Index'].isna().sum()
-print(f"Fear and Greed Index 中的缺失值數量：{missing_values}")
+# 重命名欄位
+df_regression_week_stats_with_returns.rename(columns={
+    'value': 'Fear and Greed Index',
+    '收市': 'VIX'
+}, inplace=True)
+
+# 檢查合併前的缺失值數量
+print("填補前的缺失值數量：")
+missing_values_fear_greed = df_regression_week_stats_with_returns['Fear and Greed Index'].isna().sum()
+missing_values_vix = df_regression_week_stats_with_returns['VIX'].isna().sum()
+print(f"Fear and Greed Index 中的缺失值數量：{missing_values_fear_greed}")
+print(f"VIX 中的缺失值數量：{missing_values_vix}")
+
+# 使用前後最近的值填補 VIX 的空值
+df_regression_week_stats_with_returns['VIX'] = df_regression_week_stats_with_returns['VIX'].fillna(method='ffill').fillna(method='bfill')
+
+# 檢查填補後的缺失值數量
+print("\n填補後的缺失值數量：")
+missing_values_fear_greed = df_regression_week_stats_with_returns['Fear and Greed Index'].isna().sum()
+missing_values_vix = df_regression_week_stats_with_returns['VIX'].isna().sum()
+print(f"Fear and Greed Index 中的缺失值數量：{missing_values_fear_greed}")
+print(f"VIX 中的缺失值數量：{missing_values_vix}")
 
 # 將結果儲存為 CSV
 output_filename = f'RND_regression_week_stats_all_data_一個點_{today}.csv'
@@ -1883,10 +2135,10 @@ print(f"\n已將結果儲存至 {output_filename}")
 
 ''' 執行迴歸分析_每週_一個點方法 '''
 # 讀取資料
-df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_all_data_一個點_2025-01-15.csv')
+df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_all_data_一個點_2025-01-16.csv')
 
 # 對所有數值變數進行敘述統計
-numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
+numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 'VIX', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
 stats_summary = df_regression_week_stats_with_returns[numeric_columns].describe().T
 
 # 顯示結果
@@ -1898,7 +2150,7 @@ stats_summary.to_csv('descriptive stats.csv', encoding='utf-8-sig')
 print(f"\n敘述統計結果已儲存至 descriptive stats.csv")
 
 # 將所有數據進行標準化
-variables_to_standardize = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 
+variables_to_standardize = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 'VIX', 
                             'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
 
 for var in variables_to_standardize:
@@ -2378,6 +2630,104 @@ print("*   : p < 0.1")
 # regression_results.to_csv('regression_model_coefficients.csv', index=False, encoding='utf-8-sig')
 # model_stats.to_csv('regression_model_statistics.csv', index=False, encoding='utf-8-sig')
 
+# 基於這個模型的四因子迴歸分析（固定 Kurtosis、Median 和 Fear and Greed Index）
+# 建立一個 DataFrame 來儲存迴歸結果
+quadvariate_regression_results = pd.DataFrame(columns=[
+    'Variable',
+    'Kurtosis_Coef', 'Kurtosis_p', 'Kurtosis_Sig',
+    'Median_Coef', 'Median_p', 'Median_Sig',
+    'Fear and Greed Index_Coef', 'Fear and Greed Index_p', 'Fear and Greed Index_Sig',
+    'Variable_Coef', 'Variable_p', 'Variable_Sig',
+    'R-squared'
+])
+
+# 設定 Y 變數
+y = df_regression_week_stats_with_returns['T Return']
+
+# 對每個 X 變數進行四因子迴歸（與 Kurtosis, Median, Fear and Greed Index 配對）
+for var in variables_to_standardize:
+    if var not in ['T Return', 'Kurtosis', 'Median', 'Fear and Greed Index']:  # 排除 Y 變數和固定的三個因子
+        # 準備 X 變數
+        X = df_regression_week_stats_with_returns[['Kurtosis', 'Median', 'Fear and Greed Index', var]]
+        X = sm.add_constant(X)  # 加入常數項
+        
+        # 執行迴歸
+        model = sm.OLS(y, X).fit()
+        
+        # 判斷 Skewness 的顯著水準
+        p_value_skew = model.pvalues[1]
+        if p_value_skew < 0.01:
+            sig_skew = '***'
+        elif p_value_skew < 0.05:
+            sig_skew = '**'
+        elif p_value_skew < 0.1:
+            sig_skew = '*'
+        else:
+            sig_skew = ''
+            
+        # 判斷 Kurtosis 的顯著水準
+        p_value_kurt = model.pvalues[2]
+        if p_value_kurt < 0.01:
+            sig_kurt = '***'
+        elif p_value_kurt < 0.05:
+            sig_kurt = '**'
+        elif p_value_kurt < 0.1:
+            sig_kurt = '*'
+        else:
+            sig_kurt = ''
+            
+        # 判斷 Std 的顯著水準
+        p_value_std = model.pvalues[3]
+        if p_value_std < 0.01:
+            sig_std = '***'
+        elif p_value_std < 0.05:
+            sig_std = '**'
+        elif p_value_std < 0.1:
+            sig_std = '*'
+        else:
+            sig_std = ''
+            
+        # 判斷第四個變數的顯著水準
+        p_value_var = model.pvalues[4]
+        if p_value_var < 0.01:
+            sig_var = '***'
+        elif p_value_var < 0.05:
+            sig_var = '**'
+        elif p_value_var < 0.1:
+            sig_var = '*'
+        else:
+            sig_var = ''
+
+        # 儲存結果
+        quadvariate_regression_results = pd.concat([quadvariate_regression_results, pd.DataFrame({
+            'Variable': [var],
+            'Kurtosis_Coef': [model.params[1]],     # Kurtosis 係數
+            'Kurtosis_p': [p_value_skew],           # Kurtosis p-value
+            'Kurtosis_Sig': [sig_skew],             # Kurtosis 顯著性
+            'Median_Coef': [model.params[2]],     # Median 係數
+            'Median_p': [p_value_kurt],           # Median p-value
+            'Median_Sig': [sig_kurt],             # Median 顯著性
+            'Fear and Greed Index_Coef': [model.params[3]],          # Fear and Greed Index 係數
+            'Fear and Greed Index_p': [p_value_std],                 # Fear and Greed Index p-value
+            'Fear and Greed Index_Sig': [sig_std],                   # Fear and Greed Index 顯著性
+            'Variable_Coef': [model.params[4]],      # 變數係數
+            'Variable_p': [p_value_var],             # 變數 p-value
+            'Variable_Sig': [sig_var],               # 變數顯著性
+            'R-squared': [model.rsquared]            # R-squared
+        })], ignore_index=True)
+
+# 顯示結果
+print("\n四因子迴歸分析結果（固定 Kurtosis、Median 和 Fear and Greed Index）：")
+print(quadvariate_regression_results.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 將結果儲存為 CSV
+quadvariate_regression_results.to_csv('quadvariate regression results.csv', index=False, encoding='utf-8-sig')
+print(f"\n四因子迴歸分析結果已儲存至 quadvariate regression results.csv")
+
 ###########################################################
 
 # 準備迴歸變數
@@ -2558,15 +2908,18 @@ print(f"\n已將結果儲存至 {output_filename}")
 # 檔名日期需自行更改
 df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_with_returns_兩個點_2025-01-14.csv')
 df_fear_greed_index = pd.read_csv('Crypto Fear and Greed Index_2020-2024.csv')
+df_vix = pd.read_csv('S&P 500 VIX_2020-2024.csv')
 
-# 將兩個 DataFrame 的日期欄位都轉換為 datetime 格式
+# 將所有 DataFrame 的日期欄位都轉換為 datetime 格式
 df_regression_week_stats_with_returns['Observation Date'] = pd.to_datetime(df_regression_week_stats_with_returns['Observation Date'])
 df_fear_greed_index['date'] = pd.to_datetime(df_fear_greed_index['date'])
+df_vix['日期'] = pd.to_datetime(df_vix['日期'])
 
-# 將 df_fear_greed_index 的 date 設為索引
+# 將 df_fear_greed_index 和 df_vix 的日期欄位設為索引
 df_fear_greed_index.set_index('date', inplace=True)
+df_vix.set_index('日期', inplace=True)
 
-# 使用 merge 來匹配日期
+# 使用 merge 來匹配日期，先合併貪婪指數
 df_regression_week_stats_with_returns = pd.merge(
     df_regression_week_stats_with_returns,
     df_fear_greed_index[['value']],
@@ -2575,12 +2928,37 @@ df_regression_week_stats_with_returns = pd.merge(
     how='left'
 )
 
-# 重命名 value 欄位
-df_regression_week_stats_with_returns.rename(columns={'value': 'Fear and Greed Index'}, inplace=True)
+# 再合併 VIX 指數
+df_regression_week_stats_with_returns = pd.merge(
+    df_regression_week_stats_with_returns,
+    df_vix[['收市']],
+    left_on='Observation Date',
+    right_index=True,
+    how='left'
+)
 
-# 檢查是否有缺失值
-missing_values = df_regression_week_stats_with_returns['Fear and Greed Index'].isna().sum()
-print(f"Fear and Greed Index 中的缺失值數量：{missing_values}")
+# 重命名欄位
+df_regression_week_stats_with_returns.rename(columns={
+    'value': 'Fear and Greed Index',
+    '收市': 'VIX'
+}, inplace=True)
+
+# 檢查合併前的缺失值數量
+print("填補前的缺失值數量：")
+missing_values_fear_greed = df_regression_week_stats_with_returns['Fear and Greed Index'].isna().sum()
+missing_values_vix = df_regression_week_stats_with_returns['VIX'].isna().sum()
+print(f"Fear and Greed Index 中的缺失值數量：{missing_values_fear_greed}")
+print(f"VIX 中的缺失值數量：{missing_values_vix}")
+
+# 使用前後最近的值填補 VIX 的空值
+df_regression_week_stats_with_returns['VIX'] = df_regression_week_stats_with_returns['VIX'].fillna(method='ffill').fillna(method='bfill')
+
+# 檢查填補後的缺失值數量
+print("\n填補後的缺失值數量：")
+missing_values_fear_greed = df_regression_week_stats_with_returns['Fear and Greed Index'].isna().sum()
+missing_values_vix = df_regression_week_stats_with_returns['VIX'].isna().sum()
+print(f"Fear and Greed Index 中的缺失值數量：{missing_values_fear_greed}")
+print(f"VIX 中的缺失值數量：{missing_values_vix}")
 
 # 將結果儲存為 CSV
 output_filename = f'RND_regression_week_stats_all_data_兩個點_{today}.csv'
@@ -2590,10 +2968,10 @@ print(f"\n已將結果儲存至 {output_filename}")
 
 ''' 執行迴歸分析_每週_兩個點方法 '''
 # 讀取資料
-df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_all_data_兩個點_2025-01-15.csv')
+df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_all_data_兩個點_2025-01-16.csv')
 
 # 對所有數值變數進行敘述統計
-numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
+numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index','VIX', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
 stats_summary = df_regression_week_stats_with_returns[numeric_columns].describe().T
 
 # 顯示結果
@@ -2605,7 +2983,7 @@ stats_summary.to_csv(f'descriptive stats.csv', encoding='utf-8-sig')
 print(f"\n敘述統計結果已儲存至 descriptive stats.csv")
 
 # 將所有數據進行標準化
-variables_to_standardize = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 
+variables_to_standardize = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 'VIX',
                             'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
 
 for var in variables_to_standardize:
@@ -3081,6 +3459,104 @@ print("*   : p < 0.1")
 # 儲存結果
 # regression_results.to_csv('regression_model_coefficients.csv', index=False, encoding='utf-8-sig')
 # model_stats.to_csv('regression_model_statistics.csv', index=False, encoding='utf-8-sig')
+
+# 基於這個模型的四因子迴歸分析（固定 Kurtosis、Median 和 Fear and Greed Index）
+# 建立一個 DataFrame 來儲存迴歸結果
+quadvariate_regression_results = pd.DataFrame(columns=[
+    'Variable',
+    'Kurtosis_Coef', 'Kurtosis_p', 'Kurtosis_Sig',
+    'Median_Coef', 'Median_p', 'Median_Sig',
+    'Fear and Greed Index_Coef', 'Fear and Greed Index_p', 'Fear and Greed Index_Sig',
+    'Variable_Coef', 'Variable_p', 'Variable_Sig',
+    'R-squared'
+])
+
+# 設定 Y 變數
+y = df_regression_week_stats_with_returns['T Return']
+
+# 對每個 X 變數進行四因子迴歸（與 Kurtosis, Median, Fear and Greed Index 配對）
+for var in variables_to_standardize:
+    if var not in ['T Return', 'Kurtosis', 'Median', 'Fear and Greed Index']:  # 排除 Y 變數和固定的三個因子
+        # 準備 X 變數
+        X = df_regression_week_stats_with_returns[['Kurtosis', 'Median', 'Fear and Greed Index', var]]
+        X = sm.add_constant(X)  # 加入常數項
+        
+        # 執行迴歸
+        model = sm.OLS(y, X).fit()
+        
+        # 判斷 Skewness 的顯著水準
+        p_value_skew = model.pvalues[1]
+        if p_value_skew < 0.01:
+            sig_skew = '***'
+        elif p_value_skew < 0.05:
+            sig_skew = '**'
+        elif p_value_skew < 0.1:
+            sig_skew = '*'
+        else:
+            sig_skew = ''
+            
+        # 判斷 Kurtosis 的顯著水準
+        p_value_kurt = model.pvalues[2]
+        if p_value_kurt < 0.01:
+            sig_kurt = '***'
+        elif p_value_kurt < 0.05:
+            sig_kurt = '**'
+        elif p_value_kurt < 0.1:
+            sig_kurt = '*'
+        else:
+            sig_kurt = ''
+            
+        # 判斷 Std 的顯著水準
+        p_value_std = model.pvalues[3]
+        if p_value_std < 0.01:
+            sig_std = '***'
+        elif p_value_std < 0.05:
+            sig_std = '**'
+        elif p_value_std < 0.1:
+            sig_std = '*'
+        else:
+            sig_std = ''
+            
+        # 判斷第四個變數的顯著水準
+        p_value_var = model.pvalues[4]
+        if p_value_var < 0.01:
+            sig_var = '***'
+        elif p_value_var < 0.05:
+            sig_var = '**'
+        elif p_value_var < 0.1:
+            sig_var = '*'
+        else:
+            sig_var = ''
+
+        # 儲存結果
+        quadvariate_regression_results = pd.concat([quadvariate_regression_results, pd.DataFrame({
+            'Variable': [var],
+            'Kurtosis_Coef': [model.params[1]],     # Kurtosis 係數
+            'Kurtosis_p': [p_value_skew],           # Kurtosis p-value
+            'Kurtosis_Sig': [sig_skew],             # Kurtosis 顯著性
+            'Median_Coef': [model.params[2]],     # Median 係數
+            'Median_p': [p_value_kurt],           # Median p-value
+            'Median_Sig': [sig_kurt],             # Median 顯著性
+            'Fear and Greed Index_Coef': [model.params[3]],          # Fear and Greed Index 係數
+            'Fear and Greed Index_p': [p_value_std],                 # Fear and Greed Index p-value
+            'Fear and Greed Index_Sig': [sig_std],                   # Fear and Greed Index 顯著性
+            'Variable_Coef': [model.params[4]],      # 變數係數
+            'Variable_p': [p_value_var],             # 變數 p-value
+            'Variable_Sig': [sig_var],               # 變數顯著性
+            'R-squared': [model.rsquared]            # R-squared
+        })], ignore_index=True)
+
+# 顯示結果
+print("\n四因子迴歸分析結果（固定 Kurtosis、Median 和 Fear and Greed Index）：")
+print(quadvariate_regression_results.round(4))
+print("\n顯著水準說明：")
+print("*** : p < 0.01")
+print("**  : p < 0.05")
+print("*   : p < 0.1")
+
+# 將結果儲存為 CSV
+quadvariate_regression_results.to_csv('quadvariate regression results.csv', index=False, encoding='utf-8-sig')
+print(f"\n四因子迴歸分析結果已儲存至 quadvariate regression results.csv")
 
 ###########################################################
 
