@@ -415,15 +415,18 @@ print(f"\n已將結果儲存至 {output_filename}")
 # 檔名日期需自行更改
 df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_with_returns_一個點.csv')
 df_fear_greed_index = pd.read_csv('Crypto Fear and Greed Index_2020-2024.csv')
+df_vix = pd.read_csv('S&P 500 VIX_2020-2024.csv')
 
-# 將兩個 DataFrame 的日期欄位都轉換為 datetime 格式
+# 將所有 DataFrame 的日期欄位都轉換為 datetime 格式
 df_regression_day_stats_with_returns['Observation Date'] = pd.to_datetime(df_regression_day_stats_with_returns['Observation Date'])
 df_fear_greed_index['date'] = pd.to_datetime(df_fear_greed_index['date'])
+df_vix['日期'] = pd.to_datetime(df_vix['日期'])
 
-# 將 df_fear_greed_index 的 date 設為索引
+# 將 df_fear_greed_index 和 df_vix 的日期欄位設為索引
 df_fear_greed_index.set_index('date', inplace=True)
+df_vix.set_index('日期', inplace=True)
 
-# 使用 merge 來匹配日期
+# 使用 merge 來匹配日期，先合併貪婪指數
 df_regression_day_stats_with_returns = pd.merge(
     df_regression_day_stats_with_returns,
     df_fear_greed_index[['value']],
@@ -432,12 +435,37 @@ df_regression_day_stats_with_returns = pd.merge(
     how='left'
 )
 
-# 重命名 value 欄位
-df_regression_day_stats_with_returns.rename(columns={'value': 'Fear and Greed Index'}, inplace=True)
+# 再合併 VIX 指數
+df_regression_day_stats_with_returns = pd.merge(
+    df_regression_day_stats_with_returns,
+    df_vix[['收市']],
+    left_on='Observation Date',
+    right_index=True,
+    how='left'
+)
 
-# 檢查是否有缺失值
-missing_values = df_regression_day_stats_with_returns['Fear and Greed Index'].isna().sum()
-print(f"Fear and Greed Index 中的缺失值數量：{missing_values}")
+# 重命名欄位
+df_regression_day_stats_with_returns.rename(columns={
+    'value': 'Fear and Greed Index',
+    '收市': 'VIX'
+}, inplace=True)
+
+# 檢查合併前的缺失值數量
+print("填補前的缺失值數量：")
+missing_values_fear_greed = df_regression_day_stats_with_returns['Fear and Greed Index'].isna().sum()
+missing_values_vix = df_regression_day_stats_with_returns['VIX'].isna().sum()
+print(f"Fear and Greed Index 中的缺失值數量：{missing_values_fear_greed}")
+print(f"VIX 中的缺失值數量：{missing_values_vix}")
+
+# 使用前後最近的值填補 VIX 的空值
+df_regression_day_stats_with_returns['VIX'] = df_regression_day_stats_with_returns['VIX'].fillna(method='ffill').fillna(method='bfill')
+
+# 檢查填補後的缺失值數量
+print("\n填補後的缺失值數量：")
+missing_values_fear_greed = df_regression_day_stats_with_returns['Fear and Greed Index'].isna().sum()
+missing_values_vix = df_regression_day_stats_with_returns['VIX'].isna().sum()
+print(f"Fear and Greed Index 中的缺失值數量：{missing_values_fear_greed}")
+print(f"VIX 中的缺失值數量：{missing_values_vix}")
 
 # 將結果儲存為 CSV
 output_filename = f'RND_regression_day_stats_all_data_一個點_{today}.csv'
@@ -450,7 +478,7 @@ print(f"\n已將結果儲存至 {output_filename}")
 df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_all_data_一個點_2025-01-15.csv')
 
 # 對所有數值變數進行敘述統計
-numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
+numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index','VIX', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
 stats_summary = df_regression_day_stats_with_returns[numeric_columns].describe().T
 
 # 顯示結果
@@ -462,7 +490,7 @@ stats_summary.to_csv(f'descriptive stats.csv', encoding='utf-8-sig')
 print(f"\n敘述統計結果已儲存至 descriptive stats.csv")
 
 # 將所有數據進行標準化
-variables_to_standardize = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 
+variables_to_standardize = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index','VIX', 
                             'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
 
 for var in variables_to_standardize:
