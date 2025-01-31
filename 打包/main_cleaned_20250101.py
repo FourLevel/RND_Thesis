@@ -39,8 +39,8 @@ today = datetime.now().strftime('%Y-%m-%d')
 # RND main
 initial_i = 1
 delta_x = 0.1 
-observation_date = "2021-02-19"
-expiration_date = "2021-02-20"
+observation_date = "2023-11-20"
+expiration_date = "2023-12-29"
 call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
 F = find_F2()
 get_FTS()
@@ -3901,18 +3901,20 @@ def plot_fitted_curves(df_options_mix, fit, observation_date, expiration_date):
 
     # 繪製經驗風險中性密度 (PDF)
     plt.figure(figsize=(10, 6), dpi=200)
-    plt.plot(fit['strike_price'], fit['RND_density'], color='orange')
+    plt.plot(fit['strike_price'], fit['RND_density'], color='orange', label='Empirical RND')
     plt.xlabel('Strike Price')
     plt.ylabel('Density')
     plt.title(f'Empirical Risk-Neutral Density of BTC options on {observation_date} (expired on {expiration_date})')
+    plt.legend()
     plt.show()
 
     # 繪製經驗風險中性累積分佈函數 (CDF)
     plt.figure(figsize=(10, 6), dpi=200)
-    plt.plot(fit['strike_price'], fit['left_cumulative'], color='orange')
+    plt.plot(fit['strike_price'], fit['left_cumulative'], color='orange', label='CDF')
     plt.xlabel('Strike Price')
     plt.ylabel('Probability')
     plt.title(f'Empirical Risk-Neutral Probability of BTC options on {observation_date} (expired on {expiration_date})')
+    plt.legend()
     plt.show()
 
 
@@ -4063,7 +4065,7 @@ def fit_gpd_tails_use_pdf_with_two_points(fit, delta_x, alpha_2L=0.02, alpha_1L=
 # 定義繪製擬合 GPD 的函數
 def plot_gpd_tails(fit, lower_bound, upper_bound, observation_date, expiration_date):
     # RND
-    plt.figure(figsize=(10, 6), dpi=100)
+    plt.figure(figsize=(10, 6), dpi=200)
     # 原始 RND
     plt.plot(fit['strike_price'], fit['full_density'], label='Empirical RND', color='royalblue')
     # 左尾 GPD
@@ -4083,11 +4085,12 @@ def plot_gpd_tails(fit, lower_bound, upper_bound, observation_date, expiration_d
 
 # 定義繪製完整密度累積分佈函數的函數
 def plot_full_density_cdf(fit, observation_date, expiration_date):
-    plt.figure(figsize=(10, 6), dpi=100)
-    plt.plot(fit['strike_price'], fit['full_density_cumulative'])
+    plt.figure(figsize=(10, 6), dpi=200)
+    plt.plot(fit['strike_price'], fit['full_density_cumulative'], label='CDF')
     plt.xlabel('Strike Price')
     plt.ylabel('Probability')
     plt.title(f'Empirical Risk-Neutral Probability of BTC options on {observation_date} (expired on {expiration_date})')
+    plt.legend()
     plt.show()
 
 
@@ -4119,8 +4122,8 @@ def calculate_rnd_statistics(fit, delta_x):
 
 # 定義繪製 RND 圖形及分位數的函數
 def plot_rnd_with_quantiles(fit, quants, observation_date, expiration_date):
-    plt.figure(figsize=(10, 6), dpi=100)
-    plt.plot(fit['strike_price'], fit['full_density'], label='RND')
+    plt.figure(figsize=(10, 6), dpi=200)
+    plt.plot(fit['strike_price'], fit['full_density'], label='Empirical RND')
     for quant in quants:
         plt.axvline(x=quant, linestyle='--', color='gray')
     plt.xlabel('Strike Price')
