@@ -415,7 +415,7 @@ print(f"\n已將結果儲存至 {output_filename}")
 # 檔名日期需自行更改
 df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_with_returns_一個點.csv')
 df_fear_greed_index = pd.read_csv('Crypto Fear and Greed Index_2020-2024.csv')
-df_vix = pd.read_csv('S&P 500 VIX_2020-2024.csv')
+df_vix = pd.read_csv('CBOE VIX_2020-2024.csv')
 
 # 將所有 DataFrame 的日期欄位都轉換為 datetime 格式
 df_regression_day_stats_with_returns['Observation Date'] = pd.to_datetime(df_regression_day_stats_with_returns['Observation Date'])
@@ -475,7 +475,7 @@ print(f"\n已將結果儲存至 {output_filename}")
 
 ''' 執行迴歸分析_每天_一個點方法 '''
 # 讀取資料
-df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_all_data_一個點_2025-01-16.csv')
+df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_all_data_一個點_2025-02-02.csv')
 
 # 對所有數值變數進行敘述統計
 numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index','VIX', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
@@ -500,7 +500,7 @@ for var in variables_to_standardize:
 
 # 單因子迴歸分析
 # 建立一個 DataFrame 來儲存迴歸結果
-univariate_regression_results = pd.DataFrame(columns=['Variable', 'Coefficient', 'p value','Significance', 'R-squared'])
+univariate_regression_results = pd.DataFrame(columns=['Variable', 'Coefficient', 'p value', 'Significance', 'R-squared', 'MSE'])
 
 # 設定 Y 變數
 y = df_regression_day_stats_with_returns['T Return']
@@ -514,6 +514,10 @@ for var in variables_to_standardize:
         
         # 執行迴歸
         model = sm.OLS(y, X).fit()
+        
+        # 計算 MSE
+        y_pred = model.predict(X)
+        mse = np.mean((y - y_pred) ** 2)
         
         # 判斷顯著水準
         p_value = model.pvalues[1]
@@ -532,7 +536,8 @@ for var in variables_to_standardize:
             'Coefficient': [model.params[1]],  # 係數
             'p value': [model.pvalues[1]],    # p value
             'Significance': [significance],   # 顯著水準
-            'R-squared': [model.rsquared]     # R-squared
+            'R-squared': [model.rsquared],     # R-squared
+            'MSE': [mse]                      # MSE
         })], ignore_index=True)
 
 # 顯示結果
@@ -553,7 +558,7 @@ bivariate_regression_results = pd.DataFrame(columns=[
     'Variable', 
     'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
     'Variable_Coef', 'Variable_p', 'Variable_Sig',
-    'R-squared'
+    'R-squared', 'MSE'
 ])
 
 # 設定 Y 變數
@@ -568,6 +573,10 @@ for var in variables_to_standardize:
         
         # 執行迴歸
         model = sm.OLS(y, X).fit()
+        
+        # 計算 MSE
+        y_pred = model.predict(X)
+        mse = np.mean((y - y_pred) ** 2)
         
         # 判斷 Skewness 的顯著水準
         p_value_skew = model.pvalues[1]
@@ -600,7 +609,8 @@ for var in variables_to_standardize:
             'Variable_Coef': [model.params[2]],      # 變數係數
             'Variable_p': [p_value_var],             # 變數 p-value
             'Variable_Sig': [sig_var],               # 變數顯著性
-            'R-squared': [model.rsquared]            # R-squared
+            'R-squared': [model.rsquared],           # R-squared
+            'MSE': [mse]                            # MSE
         })], ignore_index=True)
 
 # 顯示結果
@@ -622,7 +632,7 @@ trivariate_regression_results = pd.DataFrame(columns=[
     'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
     'Kurtosis_Coef', 'Kurtosis_p', 'Kurtosis_Sig',
     'Variable_Coef', 'Variable_p', 'Variable_Sig',
-    'R-squared'
+    'R-squared', 'MSE'
 ])
 
 # 設定 Y 變數
@@ -637,6 +647,10 @@ for var in variables_to_standardize:
         
         # 執行迴歸
         model = sm.OLS(y, X).fit()
+        
+        # 計算 MSE
+        y_pred = model.predict(X)
+        mse = np.mean((y - y_pred) ** 2)
         
         # 判斷 Skewness 的顯著水準
         p_value_skew = model.pvalues[1]
@@ -683,7 +697,8 @@ for var in variables_to_standardize:
             'Variable_Coef': [model.params[3]],      # 變數係數
             'Variable_p': [p_value_var],             # 變數 p-value
             'Variable_Sig': [sig_var],               # 變數顯著性
-            'R-squared': [model.rsquared]            # R-squared
+            'R-squared': [model.rsquared],           # R-squared
+            'MSE': [mse]                            # MSE
         })], ignore_index=True)
 
 # 顯示結果
@@ -706,7 +721,7 @@ quadvariate_regression_results = pd.DataFrame(columns=[
     'Kurtosis_Coef', 'Kurtosis_p', 'Kurtosis_Sig',
     'Std_Coef', 'Std_p', 'Std_Sig',
     'Variable_Coef', 'Variable_p', 'Variable_Sig',
-    'R-squared'
+    'R-squared', 'MSE'
 ])
 
 # 設定 Y 變數
@@ -721,6 +736,10 @@ for var in variables_to_standardize:
         
         # 執行迴歸
         model = sm.OLS(y, X).fit()
+        
+        # 計算 MSE
+        y_pred = model.predict(X)
+        mse = np.mean((y - y_pred) ** 2)
         
         # 判斷 Skewness 的顯著水準
         p_value_skew = model.pvalues[1]
@@ -781,7 +800,8 @@ for var in variables_to_standardize:
             'Variable_Coef': [model.params[4]],      # 變數係數
             'Variable_p': [p_value_var],             # 變數 p-value
             'Variable_Sig': [sig_var],               # 變數顯著性
-            'R-squared': [model.rsquared]            # R-squared
+            'R-squared': [model.rsquared],           # R-squared
+            'MSE': [mse]                            # MSE
         })], ignore_index=True)
 
 # 顯示結果
@@ -797,11 +817,6 @@ quadvariate_regression_results.to_csv('quadvariate regression results.csv', inde
 print(f"\n四因子迴歸分析結果已儲存至 quadvariate regression results.csv")
 
 '''
-# 針對 T Return, Skewness, Kurtosis 欄位，將小於 -3 與大於 3 的資料列刪除
-# df_regression_day_stats_with_returns = df_regression_day_stats_with_returns[(df_regression_day_stats_with_returns['T Return'] >= -2) & (df_regression_day_stats_with_returns['T Return'] <= 2)]
-# df_regression_day_stats_with_returns = df_regression_day_stats_with_returns[(df_regression_day_stats_with_returns['Skewness'] >= -2) & (df_regression_day_stats_with_returns['Skewness'] <= 2)]
-# df_regression_day_stats_with_returns = df_regression_day_stats_with_returns[(df_regression_day_stats_with_returns['Kurtosis'] >= -2) & (df_regression_day_stats_with_returns['Kurtosis'] <= 2)]
-
 # 針對所有變數進行 ADF 檢定
 variables = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
             'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
@@ -847,9 +862,14 @@ X_1 = sm.add_constant(X_1)
 # 執行OLS迴歸
 model = sm.OLS(y, X_1).fit()
 
+# 計算 MSE
+y_pred = model.predict(X_1)
+mse = np.mean((y - y_pred) ** 2)
+
 # 印出迴歸結果
 print("迴歸分析結果：")
 print(model.summary())
+print(f"\nMSE: {mse:.4f}")
 
 # 建立一個 DataFrame 來儲存迴歸結果
 regression_results = pd.DataFrame(columns=[
@@ -892,13 +912,14 @@ for var in variables:
 
 # 加入模型整體統計量
 model_stats = pd.DataFrame({
-    'Metric': ['R-squared', 'Adj. R-squared', 'F-statistic', 'Prob (F-statistic)', 'Number of Observations'],
+    'Metric': ['R-squared', 'Adj. R-squared', 'F-statistic', 'Prob (F-statistic)', 'Number of Observations', 'MSE'],
     'Value': [
         model.rsquared,
         model.rsquared_adj,
         model.fvalue,
         model.f_pvalue,
-        model.nobs
+        model.nobs,
+        mse
     ]
 })
 
@@ -912,10 +933,6 @@ print("*** : p < 0.01")
 print("**  : p < 0.05")
 print("*   : p < 0.1")
 
-# 儲存結果
-# regression_results.to_csv('regression_model_coefficients.csv', index=False, encoding='utf-8-sig')
-# model_stats.to_csv('regression_model_statistics.csv', index=False, encoding='utf-8-sig')
-
 # 基於這個模型的四因子迴歸分析（固定 Skewness、Median 和 T-4 Return）
 # 建立一個 DataFrame 來儲存迴歸結果
 quadvariate_regression_results = pd.DataFrame(columns=[
@@ -924,7 +941,7 @@ quadvariate_regression_results = pd.DataFrame(columns=[
     'Median_Coef', 'Median_p', 'Median_Sig',
     'T-4 Return_Coef', 'T-4 Return_p', 'T-4 Return_Sig',
     'Variable_Coef', 'Variable_p', 'Variable_Sig',
-    'R-squared'
+    'R-squared', 'MSE'
 ])
 
 # 設定 Y 變數
@@ -940,6 +957,10 @@ for var in variables_to_standardize:
         # 執行迴歸
         model = sm.OLS(y, X).fit()
         
+        # 計算 MSE
+        y_pred = model.predict(X)
+        mse = np.mean((y - y_pred) ** 2)
+        
         # 判斷 Skewness 的顯著水準
         p_value_skew = model.pvalues[1]
         if p_value_skew < 0.01:
@@ -951,27 +972,27 @@ for var in variables_to_standardize:
         else:
             sig_skew = ''
             
-        # 判斷 Kurtosis 的顯著水準
-        p_value_kurt = model.pvalues[2]
-        if p_value_kurt < 0.01:
-            sig_kurt = '***'
-        elif p_value_kurt < 0.05:
-            sig_kurt = '**'
-        elif p_value_kurt < 0.1:
-            sig_kurt = '*'
+        # 判斷 Median 的顯著水準
+        p_value_median = model.pvalues[2]
+        if p_value_median < 0.01:
+            sig_median = '***'
+        elif p_value_median < 0.05:
+            sig_median = '**'
+        elif p_value_median < 0.1:
+            sig_median = '*'
         else:
-            sig_kurt = ''
+            sig_median = ''
             
-        # 判斷 Std 的顯著水準
-        p_value_std = model.pvalues[3]
-        if p_value_std < 0.01:
-            sig_std = '***'
-        elif p_value_std < 0.05:
-            sig_std = '**'
-        elif p_value_std < 0.1:
-            sig_std = '*'
+        # 判斷 T-4 Return 的顯著水準
+        p_value_t4 = model.pvalues[3]
+        if p_value_t4 < 0.01:
+            sig_t4 = '***'
+        elif p_value_t4 < 0.05:
+            sig_t4 = '**'
+        elif p_value_t4 < 0.1:
+            sig_t4 = '*'
         else:
-            sig_std = ''
+            sig_t4 = ''
             
         # 判斷第四個變數的顯著水準
         p_value_var = model.pvalues[4]
@@ -991,15 +1012,16 @@ for var in variables_to_standardize:
             'Skewness_p': [p_value_skew],           # Skewness p-value
             'Skewness_Sig': [sig_skew],             # Skewness 顯著性
             'Median_Coef': [model.params[2]],     # Median 係數
-            'Median_p': [p_value_kurt],           # Median p-value
-            'Median_Sig': [sig_kurt],             # Median 顯著性
+            'Median_p': [p_value_median],           # Median p-value
+            'Median_Sig': [sig_median],             # Median 顯著性
             'T-4 Return_Coef': [model.params[3]],          # T-4 Return 係數
-            'T-4 Return_p': [p_value_std],                 # T-4 Return p-value
-            'T-4 Return_Sig': [sig_std],                   # T-4 Return 顯著性
+            'T-4 Return_p': [p_value_t4],                 # T-4 Return p-value
+            'T-4 Return_Sig': [sig_t4],                   # T-4 Return 顯著性
             'Variable_Coef': [model.params[4]],      # 變數係數
             'Variable_p': [p_value_var],             # 變數 p-value
             'Variable_Sig': [sig_var],               # 變數顯著性
-            'R-squared': [model.rsquared]            # R-squared
+            'R-squared': [model.rsquared],           # R-squared
+            'MSE': [mse]                            # MSE
         })], ignore_index=True)
 
 # 顯示結果
@@ -1015,67 +1037,6 @@ quadvariate_regression_results.to_csv('quadvariate regression results.csv', inde
 print(f"\n四因子迴歸分析結果已儲存至 quadvariate regression results.csv")
 
 ###########################################################
-
-# 準備迴歸變數
-X_2 = df_regression_day_stats_with_returns[[
-    'Skewness', 'Median',
-    'T-4 Return', 'VIX'
-]]
-y = df_regression_day_stats_with_returns['T Return']
-
-# 加入常數項
-X_2 = sm.add_constant(X_2)
-
-# 執行OLS迴歸
-model = sm.OLS(y, X_2).fit()
-
-# 印出迴歸結果
-print("迴歸分析結果：")
-print(model.summary())
-
-###########################################################
-
-# 準備迴歸變數
-X_3 = df_regression_day_stats_with_returns[[
-    'Median', 'Skewness',
-    'T-1 Return', 'T-4 Return'
-]]
-y = df_regression_day_stats_with_returns['T Return']
-
-# 加入常數項
-X_3 = sm.add_constant(X_3)
-
-# 執行OLS迴歸
-model = sm.OLS(y, X_3).fit()
-
-# 印出迴歸結果
-print("迴歸分析結果：")
-print(model.summary())
-
-###########################################################
-
-# 準備迴歸變數
-X_4 = df_regression_day_stats_with_returns[[
-    'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index',
-    'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return', 'T-5 Return', 'T-6 Return', 'T-7 Return'
-]]
-y = df_regression_day_stats_with_returns['T Return']
-
-# 加入常數項
-X_4 = sm.add_constant(X_4)
-
-# 執行OLS迴歸
-model = sm.OLS(y, X_4).fit()
-
-# 印出迴歸結果
-print("迴歸分析結果：")
-print(model.summary())
-
-###########################################################
-
-# 儲存迴歸結果
-with open(f'regression_results_day_一個點_{today}.txt', 'w', encoding='utf-8') as f:
-    f.write(model.summary().as_text())
 
 # 計算每個變數的 correlation matrix，並繪製 heatmap
 X = df_regression_day_stats_with_returns[[
@@ -1244,7 +1205,7 @@ print(f"\n已將結果儲存至 {output_filename}")
 # 檔名日期需自行更改
 df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_with_returns_兩個點.csv')
 df_fear_greed_index = pd.read_csv('Crypto Fear and Greed Index_2020-2024.csv')
-df_vix = pd.read_csv('S&P 500 VIX_2020-2024.csv')
+df_vix = pd.read_csv('CBOE VIX_2020-2024.csv')
 
 # 將所有 DataFrame 的日期欄位都轉換為 datetime 格式
 df_regression_day_stats_with_returns['Observation Date'] = pd.to_datetime(df_regression_day_stats_with_returns['Observation Date'])
@@ -1304,7 +1265,7 @@ print(f"\n已將結果儲存至 {output_filename}")
 
 ''' 執行迴歸分析_每天_兩個點方法 '''
 # 讀取資料
-df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_all_data_兩個點_2025-01-16.csv')
+df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_all_data_兩個點_2025-02-02.csv')
 
 # 對所有數值變數進行敘述統計
 numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index','VIX', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
@@ -1329,7 +1290,7 @@ for var in variables_to_standardize:
 
 # 單因子迴歸分析
 # 建立一個 DataFrame 來儲存迴歸結果
-univariate_regression_results = pd.DataFrame(columns=['Variable', 'Coefficient', 'p value','Significance', 'R-squared'])
+univariate_regression_results = pd.DataFrame(columns=['Variable', 'Coefficient', 'p value','Significance', 'R-squared', 'MSE'])
 
 # 設定 Y 變數
 y = df_regression_day_stats_with_returns['T Return']
@@ -1343,6 +1304,10 @@ for var in variables_to_standardize:
         
         # 執行迴歸
         model = sm.OLS(y, X).fit()
+        
+        # 計算 MSE
+        y_pred = model.predict(X)
+        mse = np.mean((y - y_pred) ** 2)
         
         # 判斷顯著水準
         p_value = model.pvalues[1]
@@ -1361,7 +1326,8 @@ for var in variables_to_standardize:
             'Coefficient': [model.params[1]],  # 係數
             'p value': [model.pvalues[1]],    # p value
             'Significance': [significance],   # 顯著水準
-            'R-squared': [model.rsquared]     # R-squared
+            'R-squared': [model.rsquared],     # R-squared
+            'MSE': [mse]                      # MSE
         })], ignore_index=True)
 
 # 顯示結果
@@ -1382,7 +1348,7 @@ bivariate_regression_results = pd.DataFrame(columns=[
     'Variable', 
     'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
     'Variable_Coef', 'Variable_p', 'Variable_Sig',
-    'R-squared'
+    'R-squared', 'MSE'
 ])
 
 # 設定 Y 變數
@@ -1397,6 +1363,10 @@ for var in variables_to_standardize:
         
         # 執行迴歸
         model = sm.OLS(y, X).fit()
+        
+        # 計算 MSE
+        y_pred = model.predict(X)
+        mse = np.mean((y - y_pred) ** 2)
         
         # 判斷 Skewness 的顯著水準
         p_value_skew = model.pvalues[1]
@@ -1429,7 +1399,8 @@ for var in variables_to_standardize:
             'Variable_Coef': [model.params[2]],      # 變數係數
             'Variable_p': [p_value_var],             # 變數 p-value
             'Variable_Sig': [sig_var],               # 變數顯著性
-            'R-squared': [model.rsquared]            # R-squared
+            'R-squared': [model.rsquared],           # R-squared
+            'MSE': [mse]                            # MSE
         })], ignore_index=True)
 
 # 顯示結果
@@ -1451,7 +1422,7 @@ trivariate_regression_results = pd.DataFrame(columns=[
     'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
     'Kurtosis_Coef', 'Kurtosis_p', 'Kurtosis_Sig',
     'Variable_Coef', 'Variable_p', 'Variable_Sig',
-    'R-squared'
+    'R-squared', 'MSE'
 ])
 
 # 設定 Y 變數
@@ -1466,6 +1437,10 @@ for var in variables_to_standardize:
         
         # 執行迴歸
         model = sm.OLS(y, X).fit()
+        
+        # 計算 MSE
+        y_pred = model.predict(X)
+        mse = np.mean((y - y_pred) ** 2)
         
         # 判斷 Skewness 的顯著水準
         p_value_skew = model.pvalues[1]
@@ -1512,7 +1487,8 @@ for var in variables_to_standardize:
             'Variable_Coef': [model.params[3]],      # 變數係數
             'Variable_p': [p_value_var],             # 變數 p-value
             'Variable_Sig': [sig_var],               # 變數顯著性
-            'R-squared': [model.rsquared]            # R-squared
+            'R-squared': [model.rsquared],           # R-squared
+            'MSE': [mse]                            # MSE
         })], ignore_index=True)
 
 # 顯示結果
@@ -1535,7 +1511,7 @@ quadvariate_regression_results = pd.DataFrame(columns=[
     'Kurtosis_Coef', 'Kurtosis_p', 'Kurtosis_Sig',
     'Std_Coef', 'Std_p', 'Std_Sig',
     'Variable_Coef', 'Variable_p', 'Variable_Sig',
-    'R-squared'
+    'R-squared', 'MSE'
 ])
 
 # 設定 Y 變數
@@ -1550,6 +1526,10 @@ for var in variables_to_standardize:
         
         # 執行迴歸
         model = sm.OLS(y, X).fit()
+        
+        # 計算 MSE
+        y_pred = model.predict(X)
+        mse = np.mean((y - y_pred) ** 2)
         
         # 判斷 Skewness 的顯著水準
         p_value_skew = model.pvalues[1]
@@ -1610,7 +1590,8 @@ for var in variables_to_standardize:
             'Variable_Coef': [model.params[4]],      # 變數係數
             'Variable_p': [p_value_var],             # 變數 p-value
             'Variable_Sig': [sig_var],               # 變數顯著性
-            'R-squared': [model.rsquared]            # R-squared
+            'R-squared': [model.rsquared],           # R-squared
+            'MSE': [mse]                            # MSE
         })], ignore_index=True)
 
 # 顯示結果
@@ -1671,9 +1652,14 @@ X_1 = sm.add_constant(X_1)
 # 執行OLS迴歸
 model = sm.OLS(y, X_1).fit()
 
+# 計算 MSE
+y_pred = model.predict(X_1)
+mse = np.mean((y - y_pred) ** 2)
+
 # 印出迴歸結果
 print("迴歸分析結果：")
 print(model.summary())
+print(f"\nMSE: {mse:.4f}")
 
 # 建立一個 DataFrame 來儲存迴歸結果
 regression_results = pd.DataFrame(columns=[
@@ -1716,13 +1702,14 @@ for var in variables:
 
 # 加入模型整體統計量
 model_stats = pd.DataFrame({
-    'Metric': ['R-squared', 'Adj. R-squared', 'F-statistic', 'Prob (F-statistic)', 'Number of Observations'],
+    'Metric': ['R-squared', 'Adj. R-squared', 'F-statistic', 'Prob (F-statistic)', 'Number of Observations', 'MSE'],
     'Value': [
         model.rsquared,
         model.rsquared_adj,
         model.fvalue,
         model.f_pvalue,
-        model.nobs
+        model.nobs,
+        mse
     ]
 })
 
@@ -1748,7 +1735,7 @@ quadvariate_regression_results = pd.DataFrame(columns=[
     'Median_Coef', 'Median_p', 'Median_Sig',
     'T-4 Return_Coef', 'T-4 Return_p', 'T-4 Return_Sig',
     'Variable_Coef', 'Variable_p', 'Variable_Sig',
-    'R-squared'
+    'R-squared', 'MSE'
 ])
 
 # 設定 Y 變數
@@ -1764,6 +1751,10 @@ for var in variables_to_standardize:
         # 執行迴歸
         model = sm.OLS(y, X).fit()
         
+        # 計算 MSE
+        y_pred = model.predict(X)
+        mse = np.mean((y - y_pred) ** 2)
+        
         # 判斷 Skewness 的顯著水準
         p_value_skew = model.pvalues[1]
         if p_value_skew < 0.01:
@@ -1775,27 +1766,27 @@ for var in variables_to_standardize:
         else:
             sig_skew = ''
             
-        # 判斷 Kurtosis 的顯著水準
-        p_value_kurt = model.pvalues[2]
-        if p_value_kurt < 0.01:
-            sig_kurt = '***'
-        elif p_value_kurt < 0.05:
-            sig_kurt = '**'
-        elif p_value_kurt < 0.1:
-            sig_kurt = '*'
+        # 判斷 Median 的顯著水準
+        p_value_median = model.pvalues[2]
+        if p_value_median < 0.01:
+            sig_median = '***'
+        elif p_value_median < 0.05:
+            sig_median = '**'
+        elif p_value_median < 0.1:
+            sig_median = '*'
         else:
-            sig_kurt = ''
+            sig_median = ''
             
-        # 判斷 Std 的顯著水準
-        p_value_std = model.pvalues[3]
-        if p_value_std < 0.01:
-            sig_std = '***'
-        elif p_value_std < 0.05:
-            sig_std = '**'
-        elif p_value_std < 0.1:
-            sig_std = '*'
+        # 判斷 T-4 Return 的顯著水準
+        p_value_t4 = model.pvalues[3]
+        if p_value_t4 < 0.01:
+            sig_t4 = '***'
+        elif p_value_t4 < 0.05:
+            sig_t4 = '**'
+        elif p_value_t4 < 0.1:
+            sig_t4 = '*'
         else:
-            sig_std = ''
+            sig_t4 = ''
             
         # 判斷第四個變數的顯著水準
         p_value_var = model.pvalues[4]
@@ -1815,15 +1806,16 @@ for var in variables_to_standardize:
             'Skewness_p': [p_value_skew],           # Skewness p-value
             'Skewness_Sig': [sig_skew],             # Skewness 顯著性
             'Median_Coef': [model.params[2]],     # Median 係數
-            'Median_p': [p_value_kurt],           # Median p-value
-            'Median_Sig': [sig_kurt],             # Median 顯著性
+            'Median_p': [p_value_median],           # Median p-value
+            'Median_Sig': [sig_median],             # Median 顯著性
             'T-4 Return_Coef': [model.params[3]],          # T-4 Return 係數
-            'T-4 Return_p': [p_value_std],                 # T-4 Return p-value
-            'T-4 Return_Sig': [sig_std],                   # T-4 Return 顯著性
+            'T-4 Return_p': [p_value_t4],                 # T-4 Return p-value
+            'T-4 Return_Sig': [sig_t4],                   # T-4 Return 顯著性
             'Variable_Coef': [model.params[4]],      # 變數係數
             'Variable_p': [p_value_var],             # 變數 p-value
             'Variable_Sig': [sig_var],               # 變數顯著性
-            'R-squared': [model.rsquared]            # R-squared
+            'R-squared': [model.rsquared],           # R-squared
+            'MSE': [mse]                            # MSE
         })], ignore_index=True)
 
 # 顯示結果
@@ -1837,81 +1829,6 @@ print("*   : p < 0.1")
 # 將結果儲存為 CSV
 quadvariate_regression_results.to_csv('quadvariate regression results.csv', index=False, encoding='utf-8-sig')
 print(f"\n四因子迴歸分析結果已儲存至 quadvariate regression results.csv")
-
-###########################################################
-
-# 準備迴歸變數
-X_2 = df_regression_day_stats_with_returns[[
-    'Skewness', 'Median',
-]]
-y = df_regression_day_stats_with_returns['T Return']
-
-# 加入常數項
-X_2 = sm.add_constant(X_2)
-
-# 執行OLS迴歸
-model = sm.OLS(y, X_2).fit()
-
-# 印出迴歸結果
-print("迴歸分析結果：")
-print(model.summary())
-
-###########################################################
-
-# 準備迴歸變數
-X_3 = df_regression_day_stats_with_returns[[
-    'Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
-    'T-1 Return', 'T-4 Return'
-]]
-y = df_regression_day_stats_with_returns['T Return']
-
-# 加入常數項
-X_3 = sm.add_constant(X_3)
-
-# 執行OLS迴歸
-model = sm.OLS(y, X_3).fit()
-
-# 印出迴歸結果
-print("迴歸分析結果：")
-print(model.summary())
-
-###########################################################
-
-# 準備迴歸變數
-X_4 = df_regression_day_stats_with_returns[[
-    'Skewness', 'Median',
-    'T-1 Return', 'T-4 Return'
-]]
-y = df_regression_day_stats_with_returns['T Return']
-
-# 加入常數項
-X_4 = sm.add_constant(X_4)
-
-# 執行OLS迴歸
-model = sm.OLS(y, X_4).fit()
-
-# 印出迴歸結果
-print("迴歸分析結果：")
-print(model.summary())
-
-###########################################################
-
-# 準備迴歸變數
-X_5 = df_regression_day_stats_with_returns[[
-    'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index',
-    'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return'
-]]
-y = df_regression_day_stats_with_returns['T Return']
-
-# 加入常數項
-X_5 = sm.add_constant(X_5)
-
-# 執行OLS迴歸
-model = sm.OLS(y, X_5).fit()
-
-# 印出迴歸結果
-print("迴歸分析結果：")
-print(model.summary())
 
 ###########################################################
 
@@ -2075,7 +1992,7 @@ print(f"\n已將結果儲存至 {output_filename}")
 # 檔名日期需自行更改
 df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_with_returns_一個點_2025-01-14.csv')
 df_fear_greed_index = pd.read_csv('Crypto Fear and Greed Index_2020-2024.csv')
-df_vix = pd.read_csv('S&P 500 VIX_2020-2024.csv')
+df_vix = pd.read_csv('CBOE VIX_2020-2024.csv')
 
 # 將所有 DataFrame 的日期欄位都轉換為 datetime 格式
 df_regression_week_stats_with_returns['Observation Date'] = pd.to_datetime(df_regression_week_stats_with_returns['Observation Date'])
@@ -2135,7 +2052,7 @@ print(f"\n已將結果儲存至 {output_filename}")
 
 ''' 執行迴歸分析_每週_一個點方法 '''
 # 讀取資料
-df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_all_data_一個點_2025-01-16.csv')
+df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_all_data_一個點_2025-02-02.csv')
 
 # 對所有數值變數進行敘述統計
 numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index', 'VIX', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
@@ -2160,7 +2077,7 @@ for var in variables_to_standardize:
 
 # 單因子迴歸分析
 # 建立一個 DataFrame 來儲存迴歸結果
-univariate_regression_results = pd.DataFrame(columns=['Variable', 'Coefficient', 'p value','Significance', 'R-squared'])
+univariate_regression_results = pd.DataFrame(columns=['Variable', 'Coefficient', 'p value','Significance', 'R-squared', 'MSE'])
 
 # 設定 Y 變數
 y = df_regression_week_stats_with_returns['T Return']
@@ -2171,9 +2088,13 @@ for var in variables_to_standardize:
         # 準備 X 變數
         X = df_regression_week_stats_with_returns[var]
         X = sm.add_constant(X)  # 加入常數項
-
+        
         # 執行迴歸
         model = sm.OLS(y, X).fit()
+        
+        # 計算 MSE
+        y_pred = model.predict(X)
+        mse = np.mean((y - y_pred) ** 2)
         
         # 判斷顯著水準
         p_value = model.pvalues[1]
@@ -2192,7 +2113,8 @@ for var in variables_to_standardize:
             'Coefficient': [model.params[1]],  # 係數
             'p value': [model.pvalues[1]],    # p value
             'Significance': [significance],   # 顯著水準
-            'R-squared': [model.rsquared]     # R-squared
+            'R-squared': [model.rsquared],    # R-squared
+            'MSE': [mse]                      # MSE
         })], ignore_index=True)
 
 # 顯示結果
@@ -2213,7 +2135,7 @@ bivariate_regression_results = pd.DataFrame(columns=[
     'Variable', 
     'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
     'Variable_Coef', 'Variable_p', 'Variable_Sig',
-    'R-squared'
+    'R-squared', 'MSE'
 ])
 
 # 設定 Y 變數
@@ -2228,6 +2150,10 @@ for var in variables_to_standardize:
         
         # 執行迴歸
         model = sm.OLS(y, X).fit()
+        
+        # 計算 MSE
+        y_pred = model.predict(X)
+        mse = np.mean((y - y_pred) ** 2)
         
         # 判斷 Skewness 的顯著水準
         p_value_skew = model.pvalues[1]
@@ -2260,7 +2186,8 @@ for var in variables_to_standardize:
             'Variable_Coef': [model.params[2]],      # 變數係數
             'Variable_p': [p_value_var],             # 變數 p-value
             'Variable_Sig': [sig_var],               # 變數顯著性
-            'R-squared': [model.rsquared]            # R-squared
+            'R-squared': [model.rsquared],           # R-squared
+            'MSE': [mse]                            # MSE
         })], ignore_index=True)
 
 # 顯示結果
@@ -2282,7 +2209,7 @@ trivariate_regression_results = pd.DataFrame(columns=[
     'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
     'Kurtosis_Coef', 'Kurtosis_p', 'Kurtosis_Sig',
     'Variable_Coef', 'Variable_p', 'Variable_Sig',
-    'R-squared'
+    'R-squared', 'MSE'
 ])
 
 # 設定 Y 變數
@@ -2297,6 +2224,10 @@ for var in variables_to_standardize:
         
         # 執行迴歸
         model = sm.OLS(y, X).fit()
+        
+        # 計算 MSE
+        y_pred = model.predict(X)
+        mse = np.mean((y - y_pred) ** 2)
         
         # 判斷 Skewness 的顯著水準
         p_value_skew = model.pvalues[1]
@@ -2343,7 +2274,8 @@ for var in variables_to_standardize:
             'Variable_Coef': [model.params[3]],      # 變數係數
             'Variable_p': [p_value_var],             # 變數 p-value
             'Variable_Sig': [sig_var],               # 變數顯著性
-            'R-squared': [model.rsquared]            # R-squared
+            'R-squared': [model.rsquared],           # R-squared
+            'MSE': [mse]                            # MSE
         })], ignore_index=True)
 
 # 顯示結果
@@ -2366,7 +2298,7 @@ quadvariate_regression_results = pd.DataFrame(columns=[
     'Kurtosis_Coef', 'Kurtosis_p', 'Kurtosis_Sig',
     'Std_Coef', 'Std_p', 'Std_Sig',
     'Variable_Coef', 'Variable_p', 'Variable_Sig',
-    'R-squared'
+    'R-squared', 'MSE'
 ])
 
 # 設定 Y 變數
@@ -2381,6 +2313,10 @@ for var in variables_to_standardize:
         
         # 執行迴歸
         model = sm.OLS(y, X).fit()
+        
+        # 計算 MSE
+        y_pred = model.predict(X)
+        mse = np.mean((y - y_pred) ** 2)
         
         # 判斷 Skewness 的顯著水準
         p_value_skew = model.pvalues[1]
@@ -2441,7 +2377,8 @@ for var in variables_to_standardize:
             'Variable_Coef': [model.params[4]],      # 變數係數
             'Variable_p': [p_value_var],             # 變數 p-value
             'Variable_Sig': [sig_var],               # 變數顯著性
-            'R-squared': [model.rsquared]            # R-squared
+            'R-squared': [model.rsquared],           # R-squared
+            'MSE': [mse]                            # MSE
         })], ignore_index=True)
 
 # 顯示結果
@@ -2494,61 +2431,6 @@ with open(f'adf_results_week_一個點_{today}.txt', 'w', encoding='utf-8') as f
 
 ###########################################################
 
-# 準備迴歸變數
-X_1 = df_regression_week_stats_with_returns[[
-    'Kurtosis'
-]]
-y = df_regression_week_stats_with_returns['T Return']
-
-# 加入常數項
-X_1 = sm.add_constant(X_1)
-
-# 執行OLS迴歸
-model = sm.OLS(y, X_1).fit()
-
-# 印出迴歸結果
-print("迴歸分析結果：")
-print(model.summary())
-
-###########################################################
-
-# 準備迴歸變數
-X_2 = df_regression_week_stats_with_returns[[
-    'Kurtosis', 'Median',
-]]
-y = df_regression_week_stats_with_returns['T Return']
-
-# 加入常數項
-X_2 = sm.add_constant(X_2)
-
-# 執行OLS迴歸
-model = sm.OLS(y, X_2).fit()
-
-# 印出迴歸結果
-print("迴歸分析結果：")
-print(model.summary())
-
-###########################################################
-
-# 準備迴歸變數
-X_3 = df_regression_week_stats_with_returns[[
-    'Mean', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
-    'T-1 Return','T-2 Return'
-]]
-y = df_regression_week_stats_with_returns['T Return']
-
-# 加入常數項
-X_3 = sm.add_constant(X_3)
-
-# 執行OLS迴歸
-model = sm.OLS(y, X_3).fit()
-
-# 印出迴歸結果
-print("迴歸分析結果：")
-print(model.summary())
-
-###########################################################
-
 # 準備迴歸變數，用這個模型
 X_4 = df_regression_week_stats_with_returns[[
      'Kurtosis', 'Median', 'Fear and Greed Index',
@@ -2561,9 +2443,14 @@ X_4 = sm.add_constant(X_4)
 # 執行OLS迴歸
 model = sm.OLS(y, X_4).fit()
 
+# 計算 MSE
+y_pred = model.predict(X_4)
+mse = np.mean((y - y_pred) ** 2)
+
 # 印出迴歸結果
 print("迴歸分析結果：")
 print(model.summary())
+print(f"\nMSE: {mse:.4f}")
 
 # 建立一個 DataFrame 來儲存迴歸結果
 regression_results = pd.DataFrame(columns=[
@@ -2606,13 +2493,14 @@ for var in variables:
 
 # 加入模型整體統計量
 model_stats = pd.DataFrame({
-    'Metric': ['R-squared', 'Adj. R-squared', 'F-statistic', 'Prob (F-statistic)', 'Number of Observations'],
+    'Metric': ['R-squared', 'Adj. R-squared', 'F-statistic', 'Prob (F-statistic)', 'Number of Observations', 'MSE'],
     'Value': [
         model.rsquared,
         model.rsquared_adj,
         model.fvalue,
         model.f_pvalue,
-        model.nobs
+        model.nobs,
+        mse
     ]
 })
 
@@ -2626,10 +2514,6 @@ print("*** : p < 0.01")
 print("**  : p < 0.05")
 print("*   : p < 0.1")
 
-# 儲存結果
-# regression_results.to_csv('regression_model_coefficients.csv', index=False, encoding='utf-8-sig')
-# model_stats.to_csv('regression_model_statistics.csv', index=False, encoding='utf-8-sig')
-
 # 基於這個模型的四因子迴歸分析（固定 Kurtosis、Median 和 Fear and Greed Index）
 # 建立一個 DataFrame 來儲存迴歸結果
 quadvariate_regression_results = pd.DataFrame(columns=[
@@ -2638,7 +2522,7 @@ quadvariate_regression_results = pd.DataFrame(columns=[
     'Median_Coef', 'Median_p', 'Median_Sig',
     'Fear and Greed Index_Coef', 'Fear and Greed Index_p', 'Fear and Greed Index_Sig',
     'Variable_Coef', 'Variable_p', 'Variable_Sig',
-    'R-squared'
+    'R-squared', 'MSE'
 ])
 
 # 設定 Y 變數
@@ -2654,19 +2538,12 @@ for var in variables_to_standardize:
         # 執行迴歸
         model = sm.OLS(y, X).fit()
         
-        # 判斷 Skewness 的顯著水準
-        p_value_skew = model.pvalues[1]
-        if p_value_skew < 0.01:
-            sig_skew = '***'
-        elif p_value_skew < 0.05:
-            sig_skew = '**'
-        elif p_value_skew < 0.1:
-            sig_skew = '*'
-        else:
-            sig_skew = ''
-            
+        # 計算 MSE
+        y_pred = model.predict(X)
+        mse = np.mean((y - y_pred) ** 2)
+        
         # 判斷 Kurtosis 的顯著水準
-        p_value_kurt = model.pvalues[2]
+        p_value_kurt = model.pvalues[1]
         if p_value_kurt < 0.01:
             sig_kurt = '***'
         elif p_value_kurt < 0.05:
@@ -2676,16 +2553,27 @@ for var in variables_to_standardize:
         else:
             sig_kurt = ''
             
-        # 判斷 Std 的顯著水準
-        p_value_std = model.pvalues[3]
-        if p_value_std < 0.01:
-            sig_std = '***'
-        elif p_value_std < 0.05:
-            sig_std = '**'
-        elif p_value_std < 0.1:
-            sig_std = '*'
+        # 判斷 Median 的顯著水準
+        p_value_median = model.pvalues[2]
+        if p_value_median < 0.01:
+            sig_median = '***'
+        elif p_value_median < 0.05:
+            sig_median = '**'
+        elif p_value_median < 0.1:
+            sig_median = '*'
         else:
-            sig_std = ''
+            sig_median = ''
+            
+        # 判斷 Fear and Greed Index 的顯著水準
+        p_value_fgi = model.pvalues[3]
+        if p_value_fgi < 0.01:
+            sig_fgi = '***'
+        elif p_value_fgi < 0.05:
+            sig_fgi = '**'
+        elif p_value_fgi < 0.1:
+            sig_fgi = '*'
+        else:
+            sig_fgi = ''
             
         # 判斷第四個變數的顯著水準
         p_value_var = model.pvalues[4]
@@ -2702,18 +2590,19 @@ for var in variables_to_standardize:
         quadvariate_regression_results = pd.concat([quadvariate_regression_results, pd.DataFrame({
             'Variable': [var],
             'Kurtosis_Coef': [model.params[1]],     # Kurtosis 係數
-            'Kurtosis_p': [p_value_skew],           # Kurtosis p-value
-            'Kurtosis_Sig': [sig_skew],             # Kurtosis 顯著性
+            'Kurtosis_p': [p_value_kurt],           # Kurtosis p-value
+            'Kurtosis_Sig': [sig_kurt],             # Kurtosis 顯著性
             'Median_Coef': [model.params[2]],     # Median 係數
-            'Median_p': [p_value_kurt],           # Median p-value
-            'Median_Sig': [sig_kurt],             # Median 顯著性
+            'Median_p': [p_value_median],           # Median p-value
+            'Median_Sig': [sig_median],             # Median 顯著性
             'Fear and Greed Index_Coef': [model.params[3]],          # Fear and Greed Index 係數
-            'Fear and Greed Index_p': [p_value_std],                 # Fear and Greed Index p-value
-            'Fear and Greed Index_Sig': [sig_std],                   # Fear and Greed Index 顯著性
+            'Fear and Greed Index_p': [p_value_fgi],                 # Fear and Greed Index p-value
+            'Fear and Greed Index_Sig': [sig_fgi],                   # Fear and Greed Index 顯著性
             'Variable_Coef': [model.params[4]],      # 變數係數
             'Variable_p': [p_value_var],             # 變數 p-value
             'Variable_Sig': [sig_var],               # 變數顯著性
-            'R-squared': [model.rsquared]            # R-squared
+            'R-squared': [model.rsquared],           # R-squared
+            'MSE': [mse]                            # MSE
         })], ignore_index=True)
 
 # 顯示結果
@@ -2727,25 +2616,6 @@ print("*   : p < 0.1")
 # 將結果儲存為 CSV
 quadvariate_regression_results.to_csv('quadvariate regression results.csv', index=False, encoding='utf-8-sig')
 print(f"\n四因子迴歸分析結果已儲存至 quadvariate regression results.csv")
-
-###########################################################
-
-# 準備迴歸變數
-X_5 = df_regression_week_stats_with_returns[[
-    'Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
-    'T-1 Return','T-2 Return','T-3 Return','T-4 Return'
-]]
-y = df_regression_week_stats_with_returns['T Return']
-
-# 加入常數項
-X_5 = sm.add_constant(X_5)
-
-# 執行OLS迴歸
-model = sm.OLS(y, X_5).fit()
-
-# 印出迴歸結果
-print("迴歸分析結果：")
-print(model.summary())
 
 ###########################################################
 
@@ -2908,7 +2778,7 @@ print(f"\n已將結果儲存至 {output_filename}")
 # 檔名日期需自行更改
 df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_with_returns_兩個點_2025-01-14.csv')
 df_fear_greed_index = pd.read_csv('Crypto Fear and Greed Index_2020-2024.csv')
-df_vix = pd.read_csv('S&P 500 VIX_2020-2024.csv')
+df_vix = pd.read_csv('CBOE VIX_2020-2024.csv')
 
 # 將所有 DataFrame 的日期欄位都轉換為 datetime 格式
 df_regression_week_stats_with_returns['Observation Date'] = pd.to_datetime(df_regression_week_stats_with_returns['Observation Date'])
@@ -2968,7 +2838,7 @@ print(f"\n已將結果儲存至 {output_filename}")
 
 ''' 執行迴歸分析_每週_兩個點方法 '''
 # 讀取資料
-df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_all_data_兩個點_2025-01-16.csv')
+df_regression_week_stats_with_returns = pd.read_csv('RND_regression_week_stats_all_data_兩個點_2025-02-02.csv')
 
 # 對所有數值變數進行敘述統計
 numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index','VIX', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
@@ -2993,7 +2863,7 @@ for var in variables_to_standardize:
 
 # 單因子迴歸分析
 # 建立一個 DataFrame 來儲存迴歸結果
-univariate_regression_results = pd.DataFrame(columns=['Variable', 'Coefficient', 'p value','Significance', 'R-squared'])
+univariate_regression_results = pd.DataFrame(columns=['Variable', 'Coefficient', 'p value','Significance', 'R-squared', 'MSE'])
 
 # 設定 Y 變數
 y = df_regression_week_stats_with_returns['T Return']
@@ -3007,6 +2877,10 @@ for var in variables_to_standardize:
 
         # 執行迴歸
         model = sm.OLS(y, X).fit()
+        
+        # 計算 MSE
+        y_pred = model.predict(X)
+        mse = np.mean((y - y_pred) ** 2)
         
         # 判斷顯著水準
         p_value = model.pvalues[1]
@@ -3025,7 +2899,8 @@ for var in variables_to_standardize:
             'Coefficient': [model.params[1]],  # 係數
             'p value': [model.pvalues[1]],    # p value
             'Significance': [significance],   # 顯著水準
-            'R-squared': [model.rsquared]     # R-squared
+            'R-squared': [model.rsquared],    # R-squared
+            'MSE': [mse]                      # MSE
         })], ignore_index=True)
 
 # 顯示結果
@@ -3046,7 +2921,7 @@ bivariate_regression_results = pd.DataFrame(columns=[
     'Variable', 
     'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
     'Variable_Coef', 'Variable_p', 'Variable_Sig',
-    'R-squared'
+    'R-squared', 'MSE'
 ])
 
 # 設定 Y 變數
@@ -3061,6 +2936,10 @@ for var in variables_to_standardize:
         
         # 執行迴歸
         model = sm.OLS(y, X).fit()
+        
+        # 計算 MSE
+        y_pred = model.predict(X)
+        mse = np.mean((y - y_pred) ** 2)
         
         # 判斷 Skewness 的顯著水準
         p_value_skew = model.pvalues[1]
@@ -3093,7 +2972,8 @@ for var in variables_to_standardize:
             'Variable_Coef': [model.params[2]],      # 變數係數
             'Variable_p': [p_value_var],             # 變數 p-value
             'Variable_Sig': [sig_var],               # 變數顯著性
-            'R-squared': [model.rsquared]            # R-squared
+            'R-squared': [model.rsquared],           # R-squared
+            'MSE': [mse]                             # MSE
         })], ignore_index=True)
 
 # 顯示結果
@@ -3115,7 +2995,7 @@ trivariate_regression_results = pd.DataFrame(columns=[
     'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
     'Kurtosis_Coef', 'Kurtosis_p', 'Kurtosis_Sig',
     'Variable_Coef', 'Variable_p', 'Variable_Sig',
-    'R-squared'
+    'R-squared', 'MSE'
 ])
 
 # 設定 Y 變數
@@ -3130,6 +3010,10 @@ for var in variables_to_standardize:
         
         # 執行迴歸
         model = sm.OLS(y, X).fit()
+        
+        # 計算 MSE
+        y_pred = model.predict(X)
+        mse = np.mean((y - y_pred) ** 2)
         
         # 判斷 Skewness 的顯著水準
         p_value_skew = model.pvalues[1]
@@ -3176,7 +3060,8 @@ for var in variables_to_standardize:
             'Variable_Coef': [model.params[3]],      # 變數係數
             'Variable_p': [p_value_var],             # 變數 p-value
             'Variable_Sig': [sig_var],               # 變數顯著性
-            'R-squared': [model.rsquared]            # R-squared
+            'R-squared': [model.rsquared],           # R-squared
+            'MSE': [mse]                             # MSE
         })], ignore_index=True)
 
 # 顯示結果
@@ -3199,7 +3084,7 @@ quadvariate_regression_results = pd.DataFrame(columns=[
     'Kurtosis_Coef', 'Kurtosis_p', 'Kurtosis_Sig',
     'Std_Coef', 'Std_p', 'Std_Sig',
     'Variable_Coef', 'Variable_p', 'Variable_Sig',
-    'R-squared'
+    'R-squared', 'MSE'
 ])
 
 # 設定 Y 變數
@@ -3214,6 +3099,10 @@ for var in variables_to_standardize:
         
         # 執行迴歸
         model = sm.OLS(y, X).fit()
+        
+        # 計算 MSE
+        y_pred = model.predict(X)
+        mse = np.mean((y - y_pred) ** 2)
         
         # 判斷 Skewness 的顯著水準
         p_value_skew = model.pvalues[1]
@@ -3274,7 +3163,8 @@ for var in variables_to_standardize:
             'Variable_Coef': [model.params[4]],      # 變數係數
             'Variable_p': [p_value_var],             # 變數 p-value
             'Variable_Sig': [sig_var],               # 變數顯著性
-            'R-squared': [model.rsquared]            # R-squared
+            'R-squared': [model.rsquared],           # R-squared
+            'MSE': [mse]                             # MSE
         })], ignore_index=True)
 
 # 顯示結果
@@ -3322,63 +3212,6 @@ with open(f'adf_results_week_兩個點_{today}.txt', 'w', encoding='utf-8') as f
 
 ###########################################################
 
-# 準備迴歸變數
-X_1 = df_regression_week_stats_with_returns[[
-    'Mean', 'Std', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
-    'T-1 Return','T-2 Return','T-3 Return','T-4 Return'
-]]
-y = df_regression_week_stats_with_returns['T Return']
-
-# 加入常數項
-X_1 = sm.add_constant(X_1)
-
-# 執行OLS迴歸
-model = sm.OLS(y, X_1).fit()
-
-# 印出迴歸結果
-print("迴歸分析結果：")
-print(model.summary())
-
-###########################################################
-
-# 準備迴歸變數
-X_2 = df_regression_week_stats_with_returns[[
-    'Mean', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
-    'T-1 Return','T-2 Return','T-3 Return','T-4 Return'
-]]
-y = df_regression_week_stats_with_returns['T Return']
-
-# 加入常數項
-X_2 = sm.add_constant(X_2)
-
-# 執行OLS迴歸
-model = sm.OLS(y, X_2).fit()
-
-# 印出迴歸結果
-print("迴歸分析結果：")
-print(model.summary())
-
-###########################################################
-
-# 準備迴歸變數
-X_3 = df_regression_week_stats_with_returns[[
-    'Mean', 'Skewness', 'Kurtosis', 'Fear and Greed Index',
-    'T-1 Return','T-2 Return'
-]]
-y = df_regression_week_stats_with_returns['T Return']
-
-# 加入常數項
-X_3 = sm.add_constant(X_3)
-
-# 執行OLS迴歸
-model = sm.OLS(y, X_3).fit()
-
-# 印出迴歸結果
-print("迴歸分析結果：")
-print(model.summary())
-
-###########################################################
-
 # 準備迴歸變數，用這個模型
 X_4 = df_regression_week_stats_with_returns[[
      'Kurtosis', 'Median', 'Fear and Greed Index',
@@ -3391,9 +3224,14 @@ X_4 = sm.add_constant(X_4)
 # 執行OLS迴歸
 model = sm.OLS(y, X_4).fit()
 
+# 計算 MSE
+y_pred = model.predict(X_4)
+mse = np.mean((y - y_pred) ** 2)
+
 # 印出迴歸結果
 print("迴歸分析結果：")
 print(model.summary())
+print(f"\nMSE: {mse:.4f}")
 
 # 建立一個 DataFrame 來儲存迴歸結果
 regression_results = pd.DataFrame(columns=[
@@ -3436,13 +3274,14 @@ for var in variables:
 
 # 加入模型整體統計量
 model_stats = pd.DataFrame({
-    'Metric': ['R-squared', 'Adj. R-squared', 'F-statistic', 'Prob (F-statistic)', 'Number of Observations'],
+    'Metric': ['R-squared', 'Adj. R-squared', 'F-statistic', 'Prob (F-statistic)', 'Number of Observations', 'MSE'],
     'Value': [
         model.rsquared,
         model.rsquared_adj,
         model.fvalue,
         model.f_pvalue,
-        model.nobs
+        model.nobs,
+        mse
     ]
 })
 
@@ -3456,10 +3295,6 @@ print("*** : p < 0.01")
 print("**  : p < 0.05")
 print("*   : p < 0.1")
 
-# 儲存結果
-# regression_results.to_csv('regression_model_coefficients.csv', index=False, encoding='utf-8-sig')
-# model_stats.to_csv('regression_model_statistics.csv', index=False, encoding='utf-8-sig')
-
 # 基於這個模型的四因子迴歸分析（固定 Kurtosis、Median 和 Fear and Greed Index）
 # 建立一個 DataFrame 來儲存迴歸結果
 quadvariate_regression_results = pd.DataFrame(columns=[
@@ -3468,7 +3303,7 @@ quadvariate_regression_results = pd.DataFrame(columns=[
     'Median_Coef', 'Median_p', 'Median_Sig',
     'Fear and Greed Index_Coef', 'Fear and Greed Index_p', 'Fear and Greed Index_Sig',
     'Variable_Coef', 'Variable_p', 'Variable_Sig',
-    'R-squared'
+    'R-squared', 'MSE'
 ])
 
 # 設定 Y 變數
@@ -3484,19 +3319,12 @@ for var in variables_to_standardize:
         # 執行迴歸
         model = sm.OLS(y, X).fit()
         
-        # 判斷 Skewness 的顯著水準
-        p_value_skew = model.pvalues[1]
-        if p_value_skew < 0.01:
-            sig_skew = '***'
-        elif p_value_skew < 0.05:
-            sig_skew = '**'
-        elif p_value_skew < 0.1:
-            sig_skew = '*'
-        else:
-            sig_skew = ''
-            
+        # 計算 MSE
+        y_pred = model.predict(X)
+        mse = np.mean((y - y_pred) ** 2)
+        
         # 判斷 Kurtosis 的顯著水準
-        p_value_kurt = model.pvalues[2]
+        p_value_kurt = model.pvalues[1]
         if p_value_kurt < 0.01:
             sig_kurt = '***'
         elif p_value_kurt < 0.05:
@@ -3506,16 +3334,27 @@ for var in variables_to_standardize:
         else:
             sig_kurt = ''
             
-        # 判斷 Std 的顯著水準
-        p_value_std = model.pvalues[3]
-        if p_value_std < 0.01:
-            sig_std = '***'
-        elif p_value_std < 0.05:
-            sig_std = '**'
-        elif p_value_std < 0.1:
-            sig_std = '*'
+        # 判斷 Median 的顯著水準
+        p_value_median = model.pvalues[2]
+        if p_value_median < 0.01:
+            sig_median = '***'
+        elif p_value_median < 0.05:
+            sig_median = '**'
+        elif p_value_median < 0.1:
+            sig_median = '*'
         else:
-            sig_std = ''
+            sig_median = ''
+            
+        # 判斷 Fear and Greed Index 的顯著水準
+        p_value_fgi = model.pvalues[3]
+        if p_value_fgi < 0.01:
+            sig_fgi = '***'
+        elif p_value_fgi < 0.05:
+            sig_fgi = '**'
+        elif p_value_fgi < 0.1:
+            sig_fgi = '*'
+        else:
+            sig_fgi = ''
             
         # 判斷第四個變數的顯著水準
         p_value_var = model.pvalues[4]
@@ -3532,18 +3371,19 @@ for var in variables_to_standardize:
         quadvariate_regression_results = pd.concat([quadvariate_regression_results, pd.DataFrame({
             'Variable': [var],
             'Kurtosis_Coef': [model.params[1]],     # Kurtosis 係數
-            'Kurtosis_p': [p_value_skew],           # Kurtosis p-value
-            'Kurtosis_Sig': [sig_skew],             # Kurtosis 顯著性
+            'Kurtosis_p': [p_value_kurt],           # Kurtosis p-value
+            'Kurtosis_Sig': [sig_kurt],             # Kurtosis 顯著性
             'Median_Coef': [model.params[2]],     # Median 係數
-            'Median_p': [p_value_kurt],           # Median p-value
-            'Median_Sig': [sig_kurt],             # Median 顯著性
+            'Median_p': [p_value_median],           # Median p-value
+            'Median_Sig': [sig_median],             # Median 顯著性
             'Fear and Greed Index_Coef': [model.params[3]],          # Fear and Greed Index 係數
-            'Fear and Greed Index_p': [p_value_std],                 # Fear and Greed Index p-value
-            'Fear and Greed Index_Sig': [sig_std],                   # Fear and Greed Index 顯著性
+            'Fear and Greed Index_p': [p_value_fgi],                 # Fear and Greed Index p-value
+            'Fear and Greed Index_Sig': [sig_fgi],                   # Fear and Greed Index 顯著性
             'Variable_Coef': [model.params[4]],      # 變數係數
             'Variable_p': [p_value_var],             # 變數 p-value
             'Variable_Sig': [sig_var],               # 變數顯著性
-            'R-squared': [model.rsquared]            # R-squared
+            'R-squared': [model.rsquared],           # R-squared
+            'MSE': [mse]                             # MSE
         })], ignore_index=True)
 
 # 顯示結果
@@ -3557,25 +3397,6 @@ print("*   : p < 0.1")
 # 將結果儲存為 CSV
 quadvariate_regression_results.to_csv('quadvariate regression results.csv', index=False, encoding='utf-8-sig')
 print(f"\n四因子迴歸分析結果已儲存至 quadvariate regression results.csv")
-
-###########################################################
-
-# 準備迴歸變數
-X_5 = df_regression_week_stats_with_returns[[
-    'Mean', 'Kurtosis', 'Fear and Greed Index',
-    'T-1 Return'
-]]
-y = df_regression_week_stats_with_returns['T Return']
-
-# 加入常數項
-X_5 = sm.add_constant(X_5)
-
-# 執行OLS迴歸
-model = sm.OLS(y, X_5).fit()
-
-# 印出迴歸結果
-print("迴歸分析結果：")
-print(model.summary())
 
 ###########################################################
 
