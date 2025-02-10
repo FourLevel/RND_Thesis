@@ -246,6 +246,114 @@ if SAVE_PROGRESS and os.path.exists(PROGRESS_FILE):
     os.remove(PROGRESS_FILE)
 
 
+''' 比較兩種方法的 RND 擬合結果（日報酬；已選定日期） '''
+# 參數設定
+initial_i = 1
+delta_x = 0.1
+BATCH_SIZE = 10  # 每批處理的數量
+SAVE_PROGRESS = True  # 是否保存進度
+PROGRESS_FILE = 'progress.txt'  # 進度檔案
+RESULT_FOLDER = 'chosen results'  # 結果儲存資料夾
+
+# 建立結果資料夾（如果不存在）
+import os
+if not os.path.exists(RESULT_FOLDER):
+    os.makedirs(RESULT_FOLDER)
+
+# 讀取進度（如果存在）
+last_processed_date = None
+if SAVE_PROGRESS and os.path.exists(PROGRESS_FILE):
+    with open(PROGRESS_FILE, 'r') as f:
+        last_processed_date = f.read().strip()
+    print(f"從上次進度繼續：{last_processed_date}")
+
+# 建立 DataFrame 存放迴歸資料
+df_regression_day = pd.DataFrame()
+
+# 選擇日期，將 type 為 day, week, quarter, year 的 date 選出，作為 expiration_dates
+expiration_dates = ['2022-07-11']
+
+# 將 expiration_dates 轉換為 datetime 格式
+expiration_dates = pd.to_datetime(expiration_dates).strftime('%Y-%m-%d')
+
+# 如果有上次進度，從該位置開始處理
+if last_processed_date:
+    start_idx = list(expiration_dates).index(last_processed_date) + 1
+    expiration_dates = expiration_dates[start_idx:]
+
+# 將日期分批
+date_batches = [expiration_dates[i:i + BATCH_SIZE] for i in range(0, len(expiration_dates), BATCH_SIZE)]
+
+# 對每一批次進行處理
+for batch_num, batch_dates in enumerate(date_batches, 1):
+    print(f"\n開始處理第 {batch_num} 批次，共 {len(batch_dates)} 個日期")
+    
+    # 對批次中的每個到期日進行處理
+    for expiration_date in batch_dates:
+        # 計算觀察日（到期日前 1 天）
+        expiry = pd.to_datetime(expiration_date)
+        observation_date = (expiry - pd.Timedelta(days=1)).strftime('%Y-%m-%d')
+        
+        print(f"\n處理中... 觀察日: {observation_date}, 到期日: {expiration_date}")
+        
+        try:
+            # 讀取資料
+            call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
+            F = find_F2()
+            get_FTS()
+            df_options_mix = mix_cp_function_v2()
+            smooth_IV = UnivariateSpline_function_v3(df_options_mix, power=4, s=None, w=None)
+            fit = RND_function(smooth_IV)
+
+            # 方法一：選1個點
+            fit1, lower_bound1, upper_bound1 = fit_gpd_tails_use_slope_and_cdf_with_one_point(
+                fit, initial_i, delta_x, alpha_1L=0.05, alpha_1R=0.95
+            )
+
+            # 方法二：選2個點
+            fit2, lower_bound2, upper_bound2 = fit_gpd_tails_use_pdf_with_two_points(
+                fit, delta_x, alpha_2L=0.02, alpha_1L=0.05, alpha_1R=0.95, alpha_2R=0.98
+            )
+
+            # 比較兩種方法並儲存圖片
+            fig = plot_compare_methods_side_by_side(
+                fit1, fit2,
+                lower_bound1, upper_bound1,
+                lower_bound2, upper_bound2,
+                observation_date, expiration_date
+            )
+            
+            # 儲存圖片
+            fig.canvas.draw()  # 強制更新畫布
+            plt.pause(0.1)  # 給予一點時間完成繪圖
+            fig.savefig(f'{RESULT_FOLDER}/Chosen_RND_comparison_{observation_date}_{expiration_date}.png', 
+                       bbox_inches='tight', dpi=200)
+            plt.close(fig)  # 明確關閉特定的圖形
+            
+            # 儲存進度
+            if SAVE_PROGRESS:
+                with open(PROGRESS_FILE, 'w') as f:
+                    f.write(expiration_date)
+            
+            print(f"成功處理 {expiration_date} 的數據")
+            
+        except Exception as e:
+            print(f"處理 {expiration_date} 時發生錯誤: {str(e)}")
+            continue
+    
+    print(f"\n完成第 {batch_num} 批次處理")
+    
+    # 每批次完成後暫停一下（可選）
+    time.sleep(5)  # 暫停 5 秒
+
+print("\n所有日期處理完成")
+
+# 處理完成後刪除進度檔案（可選）
+if SAVE_PROGRESS and os.path.exists(PROGRESS_FILE):
+    os.remove(PROGRESS_FILE)
+
+
+
 ''' Function '''
 # 讀取資料
 def read_data_v2(expiration_date):
@@ -573,7 +681,7 @@ def plot_compare_methods_side_by_side(fit1, fit2, lower_bound1, upper_bound1, lo
     basicinfo = get_FTS()
     F = basicinfo["F"]
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 8), dpi=100)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 12), dpi=100)
     
     # 左側：方法一（1個點）
     ax1.plot(fit1['strike_price'], fit1['full_density'], 
@@ -596,13 +704,13 @@ def plot_compare_methods_side_by_side(fit1, fit2, lower_bound1, upper_bound1, lo
             linestyle=':',
             linewidth=2)
     
-    ax1.set_xlabel('Strike Price')
-    ax1.set_ylabel('Probability')
-    ax1.set_xlim(F/2, F*1.5)
-    ax1.set_title('Method 1: One Point')
-    ax1.legend()
+    ax1.set_xlabel('Strike Price', fontsize=16)
+    ax1.set_ylabel('Probability', fontsize=16)
+    ax1.set_xlim(F*0.5, F*1.5)
+    ax1.set_title('Method 1: One Point', fontsize=18)
+    ax1.legend(fontsize=14)
     ax1.grid(True, alpha=0.3)
-    
+
     # 右側：方法二（2個點）
     ax2.plot(fit2['strike_price'], fit2['full_density'],
             label='Empirical RND',
@@ -624,16 +732,16 @@ def plot_compare_methods_side_by_side(fit1, fit2, lower_bound1, upper_bound1, lo
             linestyle=':',
             linewidth=2)
     
-    ax2.set_xlabel('Strike Price')
-    ax2.set_ylabel('Probability')
-    ax2.set_xlim(F/2, F*1.5)
-    ax2.set_title('Method 2: Two Points')
-    ax2.legend()
+    ax2.set_xlabel('Strike Price', fontsize=16)
+    ax2.set_ylabel('Probability', fontsize=16)
+    ax2.set_xlim(F*0.5, F*1.5)
+    ax2.set_title('Method 2: Two Points', fontsize=18)
+    ax2.legend(fontsize=14)
     ax2.grid(True, alpha=0.3)
     
     # 設定整體標題
     fig.suptitle(f'Comparison of RND Fitting Methods\nBTC options on {observation_date} (expired on {expiration_date})', 
-                 y=1.03)
+                 y=1.03, fontsize=22)
     
     plt.tight_layout()
     return fig  # 返回圖形物件
