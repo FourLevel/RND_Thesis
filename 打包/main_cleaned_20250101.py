@@ -3887,16 +3887,46 @@ def fit_gpd_tails_use_pdf_with_two_points(fit, delta_x, alpha_2L=0.02, alpha_1L=
 def plot_gpd_tails(fit, lower_bound, upper_bound, observation_date, expiration_date):
     # RND
     plt.figure(figsize=(10, 6), dpi=200)
+    
+    # 設定 y 軸格式為 10^n
+    from matplotlib.ticker import ScalarFormatter
+    ax = plt.gca()
+    ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+    plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
+
     # 原始 RND
     plt.plot(fit['strike_price'], fit['full_density'], label='Empirical RND', color='royalblue')
+    
+    # 找出 CDF 為 5% 和 95% 的點
+    left_point = fit.loc[(fit['left_cumulative'] - 0.05).abs().idxmin()]
+    right_point = fit.loc[(fit['left_cumulative'] - 0.95).abs().idxmin()]
+    
     # 左尾 GPD
     left_tail = fit[fit['strike_price'] <= upper_bound]
     plt.plot(left_tail['strike_price'], left_tail['left_extra_density'], 
              label='Left tail GPD', color='orange', linestyle=':', linewidth=2)
+    
     # 右尾 GPD
     right_tail = fit[fit['strike_price'] >= lower_bound]
     plt.plot(right_tail['strike_price'], right_tail['right_extra_density'], 
              label='Right tail GPD', color='green', linestyle=':', linewidth=2)
+    
+    # 在 5% 和 95% 的點加上黑色空心圓圈
+    plt.plot(left_point['strike_price'], left_point['full_density'], 'o', 
+             color='black', fillstyle='none', markersize=10)
+    plt.plot(right_point['strike_price'], right_point['full_density'], 'o', 
+             color='black', fillstyle='none', markersize=10)
+    
+    # 添加文字標註
+    plt.annotate(r'$\alpha_{1L}=0.05$', 
+                xy=(left_point['strike_price'], left_point['full_density']),
+                xytext=(-65, 5), textcoords='offset points',
+                fontsize=12)
+    plt.annotate(r'$\alpha_{1R}=0.95$', 
+                xy=(right_point['strike_price'], right_point['full_density']),
+                xytext=(3, 5), textcoords='offset points',
+                fontsize=12)
+    
     plt.xlabel('Strike Price')
     plt.ylabel('Probability')
     plt.title(f'Empirical Risk-Neutral Probability of BTC options on {observation_date} (expired on {expiration_date})')
