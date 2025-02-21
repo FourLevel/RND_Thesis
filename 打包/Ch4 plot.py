@@ -23,10 +23,10 @@ pd.set_option('display.float_format', '{:.4f}'.format)
 today = datetime.now().strftime('%Y-%m-%d')
 
 # RND main
-initial_i = 10
+initial_i = 1
 delta_x = 0.1 
-observation_date = "2022-07-10"
-expiration_date = "2022-07-11"
+observation_date = "2023-09-27"
+expiration_date = "2023-09-28"
 call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
 F = find_F2()
 get_FTS()
@@ -298,9 +298,26 @@ def RND_function(smooth_IV):
     # RND 平滑
     smooth_IV["RND"] = savgol_filter(smooth_IV["RND"], 301, 2)
 
-    # 計算 CDF
-    smooth_IV["left_cumulative"] = np.gradient(smooth_IV['C'], smooth_IV['K']) + 1
+    # 計算 CDF，使用中央差分
+    smooth_IV["left_cumulative"] = (
+        (smooth_IV['C'].shift(-1) - smooth_IV['C'].shift(1)) / 
+        (smooth_IV['K'].shift(-1) - smooth_IV['K'].shift(1))
+    ) + 1
     smooth_IV["right_cumulative"] = 1 - smooth_IV["left_cumulative"]
+
+    # 找出 RND 最大值的位置
+    max_rnd_idx = smooth_IV["RND"].idxmax()
+    
+    # 從最大值往右檢查，找出第一個負值的位置
+    right_cut_idx = None
+    for idx in smooth_IV.loc[max_rnd_idx:].index:
+        if smooth_IV.loc[idx, "RND"] <= 0:
+            right_cut_idx = idx
+            break
+    
+    # 如果找到負值，則截斷資料
+    if right_cut_idx is not None:
+        smooth_IV = smooth_IV.loc[:right_cut_idx-1]
 
     # 過濾無效數據
     smooth_IV = smooth_IV[
@@ -318,6 +335,16 @@ def RND_function(smooth_IV):
         (smooth_IV['RND'] > 0)
     ]
 
+    '''
+    # 檢查過濾後的資料
+    if len(smooth_IV) == 0:
+        print("警告：過濾後沒有剩餘資料")
+    else:
+        print(f"資料點數：{len(smooth_IV)}")
+        print("RND 統計資訊：")
+        print(smooth_IV['RND'].describe())
+    '''
+
     # 重命名欄位
     smooth_IV = smooth_IV.rename(columns={
         'K': 'strike_price', 
@@ -326,9 +353,8 @@ def RND_function(smooth_IV):
         'RND': 'RND_density'
     })
 
-    fit = smooth_IV
+    return smooth_IV
 
-    return fit
 
 
 # 定義繪製擬合曲線的函數
@@ -371,7 +397,6 @@ def plot_fitted_curves(df_options_mix, fit, observation_date, expiration_date):
     plt.show()
 
 
-# 定義擬合 GPD 的函數，選 1 個點，比較斜率與 CDF
 def fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alpha_1L=0.05, alpha_1R=0.95):
     """使用斜率和CDF擬合GPD尾部"""
     
@@ -426,7 +451,11 @@ def fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alph
     # 擴展並填充右尾數據
     fit = pd.merge(fit, pd.DataFrame({'strike_price': np.arange(fit['strike_price'].max() + delta_x, 160010, delta_x)}), how='outer')
     fit['right_extra_density'] = missing_tail * gpd.pdf(fit['strike_price'], right_xi, loc=loc['strike_price'].values[0], scale=right_sigma)
-    fit['full_density'] = np.where(fit['strike_price'] > loc['strike_price'].values[0], fit['right_extra_density'], fit['RND_density'])
+    
+    # 初始化full_density列並直接使用閾值切換
+    fit['full_density'] = fit['RND_density'].fillna(0)
+    mask = fit['strike_price'] >= loc['strike_price'].values[0]
+    fit.loc[mask, 'full_density'] = fit.loc[mask, 'right_extra_density'].fillna(0)
 
     #--------------------
     # 處理左尾部分
@@ -472,8 +501,15 @@ def fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alph
     fit = pd.merge(fit, pd.DataFrame({'strike_price': np.arange(0, fit['strike_price'].min() - delta_x, delta_x)}), how='outer')
     fit['reverse_strike'] = fit['strike_price'].max() - fit['strike_price']
     fit['left_extra_density'] = missing_tail * gpd.pdf(fit['reverse_strike'], left_xi, loc=loc['reverse_strike'].values[0], scale=left_sigma)
-    fit['full_density'] = np.where(fit['strike_price'] < loc['strike_price'].values[0], fit['left_extra_density'], fit['full_density'])
+    
+    # 直接使用閾值切換
+    mask = fit['strike_price'] <= loc['strike_price'].values[0]
+    fit.loc[mask, 'full_density'] = fit.loc[mask, 'left_extra_density'].fillna(0)
 
+    # 確保密度函數的連續性
+    fit = fit.sort_values('strike_price')
+    fit['full_density'] = fit['full_density'].interpolate(method='cubic')
+    
     # 計算累積密度
     fit['full_density_cumulative'] = fit['full_density'].cumsum() * delta_x
 
