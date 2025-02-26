@@ -39,8 +39,8 @@ today = datetime.now().strftime('%Y-%m-%d')
 # RND main
 initial_i = 1
 delta_x = 0.1 
-observation_date = "2023-11-20"
-expiration_date = "2023-12-29"
+observation_date = "2022-07-10"
+expiration_date = "2022-07-11"
 call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
 F = find_F2()
 get_FTS()
@@ -3698,6 +3698,57 @@ def RND_function(smooth_IV):
 
     return fit
 
+# RND
+def RND_function(smooth_IV):
+    """
+    計算風險中性機率密度 (Risk-Neutral Density) 及相關分配函數
+    
+    參數:
+        smooth_IV: 包含平滑隱含波動率的資料框
+    
+    回傳:
+        處理後的資料框，包含 RND 密度和累積分配函數
+    """
+    # 計算步長
+    dk = smooth_IV["K"].iloc[1] - smooth_IV["K"].iloc[0]
+    
+    # 計算累積分配函數 (CDF)
+    smooth_IV["left_cumulative"] = np.gradient(smooth_IV['C'], smooth_IV['K']) + 1
+    smooth_IV["right_cumulative"] = 1 - smooth_IV["left_cumulative"]
+    
+    # 計算機率密度函數 (PDF)
+    smooth_IV["pdf"] = np.gradient(np.gradient(smooth_IV['C'], smooth_IV['K']), smooth_IV['K'])
+    
+    # 使用有限差分法計算 RND
+    smooth_IV["RND_density"] = (smooth_IV["C"].shift(1) + smooth_IV["C"].shift(-1) - 2*smooth_IV["C"]) / (dk**2)
+    
+    # 移除計算過程中產生的 NaN 值
+    smooth_IV = smooth_IV.dropna()
+    
+    # 使用 Savitzky-Golay 濾波器平滑 RND
+    smooth_IV["RND_density"] = savgol_filter(smooth_IV["RND_density"], 500, 3)
+    
+    # 只保留有效範圍內的資料
+    if 'df_options_mix' in globals():
+        smooth_IV = smooth_IV[(smooth_IV['K'] >= df_options_mix.index.min()) & 
+                              (smooth_IV['K'] <= df_options_mix.index.max())]
+    
+    # 過濾無效資料
+    smooth_IV = smooth_IV[(smooth_IV['right_cumulative'].notna()) & 
+                          (smooth_IV['left_cumulative'].notna()) &
+                          (smooth_IV['right_cumulative'] < 1) & 
+                          (smooth_IV['right_cumulative'] > 0) &
+                          (smooth_IV['left_cumulative'] < 1) &
+                          (smooth_IV['left_cumulative'] > 0)]
+    
+    # 重新命名欄位以提高可讀性
+    smooth_IV = smooth_IV.rename(columns={
+        'K': 'strike_price', 
+        'mixIV': 'fit_imp_vol', 
+        'C': 'fit_call'
+    })
+    
+    return smooth_IV
 
 # 定義繪製擬合曲線的函數
 def plot_fitted_curves(df_options_mix, fit, observation_date, expiration_date):
@@ -3741,142 +3792,204 @@ def plot_fitted_curves(df_options_mix, fit, observation_date, expiration_date):
 
 # 定義擬合 GPD 的函數，選 1 個點，比較斜率與 CDF
 def fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alpha_1L=0.05, alpha_1R=0.95):
-    # 設定接合位置
-    left_tail_point = alpha_1L
-    right_tail_point = alpha_1R
-
-    # 檢查並調整 left_cumulative
+    """使用斜率和CDF擬合GPD尾部
+    
+    Args:
+        fit (DataFrame): 包含RND和CDF資料的DataFrame
+        initial_i (int): 初始搜尋步數
+        delta_x (float): x軸間距
+        alpha_1L (float): 左尾接合點的累積機率
+        alpha_1R (float): 右尾接合點的累積機率
+    """
+    # 檢查左尾累積機率
     if fit['left_cumulative'].iloc[0] > alpha_1L:
-        left_tail_point = fit['left_cumulative'].iloc[0] + 0.001
-        print(f"警告：left_cumulative[0] ({fit['left_cumulative'].iloc[0]:.4f}) 大於 alpha_1L ({alpha_1L})。將 left_tail_point 設為 {left_tail_point:.4f}")
+        alpha_1L = fit['left_cumulative'].iloc[0] + 0.0005
+        print(f"警告：left_cumulative[0] ({fit['left_cumulative'].iloc[0]:.4f}) 大於 alpha_1L，將接合點設為 {alpha_1L}。")
 
-    # Right-tail
-    loc = fit.iloc[(fit['left_cumulative'] - right_tail_point).abs().argsort()[:1]]
-    right_end = loc['strike_price'].values[0]
-    missing_tail = loc['right_cumulative'].values[0]
-    right_sigma = missing_tail / loc['RND_density'].values[0]
-    max_strike_index = fit['strike_price'].idxmax()
-    end_density = fit.loc[max_strike_index, 'RND_density']
+    #--------------------
+    # 右尾擬合
+    #--------------------
+    # 1. 找到接合點
+    loc_right = fit.iloc[(fit['left_cumulative'] - alpha_1R).abs().argsort()[:1]]
+    right_end = loc_right['strike_price'].values[0]
+    right_missing_tail = loc_right['right_cumulative'].values[0]
+    right_sigma = right_missing_tail / loc_right['RND_density'].values[0]
 
+    # 2. 尋找斜率變化點
     i = initial_i
+    loc_index = fit.index.get_loc(loc_right.index[0])
     while True:
         try:
-            loc_index = fit.index.get_loc(loc.index[0])
             if loc_index - i < 0:
-                print(f"警告：i={i} 太大，導致索引為負。調整 initial_i 或檢查數據。")
+                print(f"警告：i={i} 太大，導致索引為負。")
                 break
-            loc_slope = (-loc['RND_density'].values[0] + fit.iloc[loc_index-i]['RND_density']) / (i * delta_x)
-            if loc_slope < 0:
+            current_density = fit.iloc[loc_index-i]['RND_density']
+            right_slope = (current_density - loc_right['RND_density'].values[0]) / (i * delta_x)
+            if right_slope < 0:
                 break
             i += 1
-        except KeyError:
-            print(f"警告：loc.index[0]={loc.index[0]} 不在 fit 的索引中。檢查數據一致性。")
-            break
-        except IndexError:
-            print(f"警告：索引 {loc_index-i} 超出範圍。調整 initial_i 或檢查數據。")
+        except (KeyError, IndexError):
+            print("警告：索引錯誤。")
             break
 
-    def right_func(x):
+    # 3. GPD擬合
+    def right_objective(x):
         xi, scale = x
-        alpha_1R = loc['right_cumulative'].values[0]
-        X_alpha_1R = loc['strike_price'].values[0]
-        density_error = ((missing_tail * gpd.pdf(loc['strike_price'].values[0] + delta_x, xi, loc=loc['strike_price'].values[0], scale=scale) - loc['RND_density'].values[0]) / delta_x - loc_slope)
-        cdf_error = (gpd.cdf(X_alpha_1R, xi, loc=loc['strike_price'].values[0], scale=scale) - alpha_1R)
-        return (1e12 * density_error**2) + (1e12 * cdf_error**2)
+        X_alpha = right_end
+        slope_error = ((right_missing_tail * gpd.pdf(X_alpha + delta_x, xi, loc=X_alpha, scale=scale) - 
+                       loc_right['RND_density'].values[0]) / delta_x - right_slope)
+        cdf_error = (gpd.cdf(X_alpha, xi, loc=X_alpha, scale=scale) - loc_right['right_cumulative'].values[0])
+        return (1e12 * slope_error**2) + (1e12 * cdf_error**2)
 
-    right_fit = minimize(right_func, [0, right_sigma], bounds=[(-1, 1), (0, np.inf)], method='SLSQP')
+    right_fit = minimize(right_objective, [0, right_sigma], bounds=[(-1, 1), (0, np.inf)], method='SLSQP')
     right_xi, right_sigma = right_fit.x
 
+    # 4. 擴展並填充右尾
     fit = pd.merge(fit, pd.DataFrame({'strike_price': np.arange(fit['strike_price'].max() + delta_x, 160010, delta_x)}), how='outer')
-    fit['right_extra_density'] = missing_tail * gpd.pdf(fit['strike_price'], right_xi, loc=loc['strike_price'].values[0], scale=right_sigma)
-    fit['full_density'] = np.where(fit['strike_price'] > loc['strike_price'].values[0], fit['right_extra_density'], fit['RND_density'])
+    fit['right_extra_density'] = right_missing_tail * gpd.pdf(fit['strike_price'], right_xi, loc=right_end, scale=right_sigma)
+    fit['full_density'] = fit['RND_density'].fillna(0)
+    fit.loc[fit['strike_price'] >= right_end, 'full_density'] = fit.loc[fit['strike_price'] >= right_end, 'right_extra_density'].fillna(0)
 
-    # Left-tail
+    #--------------------
+    # 左尾擬合
+    #--------------------
+    # 1. 準備資料
     fit['reverse_strike'] = fit['strike_price'].max() - fit['strike_price']
-    loc = fit.iloc[(fit['left_cumulative'] - left_tail_point).abs().argsort()[:1]]
-    left_end = loc['strike_price'].values[0]
-    missing_tail = loc['left_cumulative'].values[0]
-    left_sigma = missing_tail / loc['RND_density'].values[0]
+    loc_left = fit.iloc[(fit['left_cumulative'] - alpha_1L).abs().argsort()[:1]]
+    left_end = loc_left['strike_price'].values[0]
+    left_missing_tail = loc_left['left_cumulative'].values[0]
+    left_sigma = left_missing_tail / loc_left['RND_density'].values[0]
 
+    # 2. 尋找斜率變化點
     i = initial_i
+    loc_index = fit.index.get_loc(loc_left.index[0])
+    max_index = len(fit) - 1
     while True:
-        loc_slope = (-loc['RND_density'].values[0] + fit.iloc[fit.index.get_loc(loc.index[0])-i]['RND_density']) / (i * delta_x)
-        if loc_slope < 0:
-            break
-        else:
+        try:
+            if loc_index + i > max_index:
+                print(f"警告：i={i} 太大，導致索引超出範圍。")
+                break
+            current_density = fit.iloc[loc_index+i]['RND_density']
+            left_slope = (current_density - loc_left['RND_density'].values[0]) / (i * delta_x)
+            if left_slope > 0:
+                break
             i += 1
+        except (KeyError, IndexError):
+            print("警告：索引錯誤。")
+            break
 
-    def left_func(x):
+    # 3. GPD擬合
+    def left_objective(x):
         xi, scale = x
-        alpha_1L = loc['left_cumulative'].values[0]
-        X_alpha_1L = loc['reverse_strike'].values[0]
-        density_error = ((missing_tail * gpd.pdf(loc['reverse_strike'].values[0] + delta_x, xi, loc=loc['reverse_strike'].values[0], scale=scale) - loc['RND_density'].values[0]) / delta_x - loc_slope)
-        cdf_error = (gpd.cdf(X_alpha_1L, xi, loc=loc['reverse_strike'].values[0], scale=scale) - alpha_1L)
-        return (1e12 * density_error**2) + (1e12 * cdf_error**2)
+        X_alpha = loc_left['reverse_strike'].values[0]
+        slope_error = ((left_missing_tail * gpd.pdf(X_alpha + delta_x, xi, loc=X_alpha, scale=scale) - 
+                       loc_left['RND_density'].values[0]) / delta_x - left_slope)
+        cdf_error = (gpd.cdf(X_alpha, xi, loc=X_alpha, scale=scale) - loc_left['left_cumulative'].values[0])
+        return (1e12 * slope_error**2) + (1e12 * cdf_error**2)
 
-    left_fit = minimize(left_func, [0, left_sigma], bounds=[(-1, 1), (0, np.inf)], method='SLSQP')
+    left_fit = minimize(left_objective, [0, left_sigma], bounds=[(-1, 1), (0, np.inf)], method='SLSQP')
     left_xi, left_sigma = left_fit.x
 
+    # 4. 擴展並填充左尾
     fit = pd.merge(fit, pd.DataFrame({'strike_price': np.arange(0, fit['strike_price'].min() - delta_x, delta_x)}), how='outer')
     fit['reverse_strike'] = fit['strike_price'].max() - fit['strike_price']
-    fit['left_extra_density'] = missing_tail * gpd.pdf(fit['reverse_strike'], left_xi, loc=loc['reverse_strike'].values[0], scale=left_sigma)
-    fit['full_density'] = np.where(fit['strike_price'] < loc['strike_price'].values[0], fit['left_extra_density'], fit['full_density'])
+    fit['left_extra_density'] = left_missing_tail * gpd.pdf(fit['reverse_strike'], left_xi, 
+                                                           loc=loc_left['reverse_strike'].values[0], scale=left_sigma)
+    fit.loc[fit['strike_price'] <= left_end, 'full_density'] = fit.loc[fit['strike_price'] <= left_end, 'left_extra_density'].fillna(0)
 
+    #--------------------
+    # 後處理
+    #--------------------
+    fit = fit.sort_values('strike_price')
+    fit['full_density'] = fit['full_density'].interpolate(method='cubic')
     fit['full_density_cumulative'] = fit['full_density'].cumsum() * delta_x
 
-    # 找到 CDF 的 Lower Bound and Upper Bound
-    lower_bound = left_end
-    upper_bound = right_end
-
-    return fit, lower_bound, upper_bound
+    return fit, left_end, right_end
 
 
 # 定義擬合 GPD 的函數，選 2 個點，比較 PDF
 def fit_gpd_tails_use_pdf_with_two_points(fit, delta_x, alpha_2L=0.02, alpha_1L=0.05, alpha_1R=0.95, alpha_2R=0.98):
-    # Right-tail
-    loc = fit.iloc[(fit['left_cumulative'] - alpha_1R).abs().argsort()[:1]]
-    missing_tail = loc['right_cumulative'].values[0]
-    right_sigma = missing_tail / loc['RND_density'].values[0]
+    """使用兩點PDF比較來擬合GPD尾部
+    
+    Args:
+        fit (DataFrame): 包含RND和CDF資料的DataFrame
+        delta_x (float): x軸間距
+        alpha_2L (float): 左尾第二個接合點的累積機率
+        alpha_1L (float): 左尾第一個接合點的累積機率
+        alpha_1R (float): 右尾第一個接合點的累積機率
+        alpha_2R (float): 右尾第二個接合點的累積機率
+    """
+    #--------------------
+    # 右尾擬合
+    #--------------------
+    # 1. 找到接合點
+    loc_right = fit.iloc[(fit['left_cumulative'] - alpha_1R).abs().argsort()[:1]]
+    right_missing_tail = loc_right['right_cumulative'].values[0]
+    right_sigma = right_missing_tail / loc_right['RND_density'].values[0]
+    
+    # 2. 找到第二個接合點
     X_alpha_2R = fit.iloc[(fit['right_cumulative'] - alpha_2R).abs().argsort()[:1]]['strike_price'].values[0]
 
-    def right_func(x):
+    # 3. GPD擬合
+    def right_objective(x):
         xi, scale = x
-        X_alpha_1R = loc['strike_price'].values[0]
-        density_error_1R = (missing_tail * gpd.pdf(X_alpha_1R + delta_x, xi, loc=X_alpha_1R, scale=scale) - loc['RND_density'].values[0])
-        density_error_2R = (missing_tail * gpd.pdf(X_alpha_2R + delta_x, xi, loc=X_alpha_2R, scale=scale) - loc['RND_density'].values[0])
+        X_alpha_1R = loc_right['strike_price'].values[0]
+        density_error_1R = (right_missing_tail * gpd.pdf(X_alpha_1R + delta_x, xi, loc=X_alpha_1R, scale=scale) - 
+                          loc_right['RND_density'].values[0])
+        density_error_2R = (right_missing_tail * gpd.pdf(X_alpha_2R + delta_x, xi, loc=X_alpha_2R, scale=scale) - 
+                          loc_right['RND_density'].values[0])
         return (1e12 * density_error_1R**2) + (1e12 * density_error_2R**2)
 
-    right_fit = minimize(right_func, [0, right_sigma], bounds=[(-1, 1), (0, np.inf)], method='SLSQP')
+    right_fit = minimize(right_objective, [0, right_sigma], bounds=[(-1, 1), (0, np.inf)], method='SLSQP')
     right_xi, right_sigma = right_fit.x
 
+    # 4. 擴展並填充右尾
     fit = pd.merge(fit, pd.DataFrame({'strike_price': np.arange(fit['strike_price'].max() + delta_x, 160010, delta_x)}), how='outer')
-    fit['right_extra_density'] = missing_tail * gpd.pdf(fit['strike_price'], right_xi, loc=loc['strike_price'].values[0], scale=right_sigma)
-    fit['full_density'] = np.where(fit['strike_price'] > loc['strike_price'].values[0], fit['right_extra_density'], fit['RND_density'])
+    fit['right_extra_density'] = right_missing_tail * gpd.pdf(fit['strike_price'], right_xi, 
+                                                             loc=loc_right['strike_price'].values[0], scale=right_sigma)
+    fit['full_density'] = np.where(fit['strike_price'] > loc_right['strike_price'].values[0], 
+                                  fit['right_extra_density'], fit['RND_density'])
 
-    # Left-tail
+    #--------------------
+    # 左尾擬合
+    #--------------------
+    # 1. 準備資料
     fit['reverse_strike'] = fit['strike_price'].max() - fit['strike_price']
-    loc = fit.iloc[(fit['left_cumulative'] - alpha_1L).abs().argsort()[:1]]
-    missing_tail = loc['left_cumulative'].values[0]
-    left_sigma = missing_tail / loc['RND_density'].values[0]
+    loc_left = fit.iloc[(fit['left_cumulative'] - alpha_1L).abs().argsort()[:1]]
+    left_missing_tail = loc_left['left_cumulative'].values[0]
+    left_sigma = left_missing_tail / loc_left['RND_density'].values[0]
+    
+    # 2. 找到第二個接合點
     X_alpha_2L = fit.iloc[(fit['left_cumulative'] - alpha_2L).abs().argsort()[:1]]['reverse_strike'].values[0]
 
-    def left_func(x):
+    # 3. GPD擬合
+    def left_objective(x):
         xi, scale = x
-        X_alpha_1L = loc['reverse_strike'].values[0]
-        density_error_1L = (missing_tail * gpd.pdf(X_alpha_1L + delta_x, xi, loc=X_alpha_1L, scale=scale) - loc['RND_density'].values[0])
-        density_error_2L = (missing_tail * gpd.pdf(X_alpha_2L + delta_x, xi, loc=X_alpha_2L, scale=scale) - loc['RND_density'].values[0])
+        X_alpha_1L = loc_left['reverse_strike'].values[0]
+        density_error_1L = (left_missing_tail * gpd.pdf(X_alpha_1L + delta_x, xi, loc=X_alpha_1L, scale=scale) - 
+                          loc_left['RND_density'].values[0])
+        density_error_2L = (left_missing_tail * gpd.pdf(X_alpha_2L + delta_x, xi, loc=X_alpha_2L, scale=scale) - 
+                          loc_left['RND_density'].values[0])
         return (1e12 * density_error_1L**2) + (1e12 * density_error_2L**2)
 
-    left_fit = minimize(left_func, [0, left_sigma], bounds=[(-1, 1), (0, np.inf)], method='SLSQP')
+    left_fit = minimize(left_objective, [0, left_sigma], bounds=[(-1, 1), (0, np.inf)], method='SLSQP')
     left_xi, left_sigma = left_fit.x
 
+    # 4. 擴展並填充左尾
     fit = pd.merge(fit, pd.DataFrame({'strike_price': np.arange(0, fit['strike_price'].min() - delta_x, delta_x)}), how='outer')
     fit['reverse_strike'] = fit['strike_price'].max() - fit['strike_price']
-    fit['left_extra_density'] = missing_tail * gpd.pdf(fit['reverse_strike'], left_xi, loc=loc['reverse_strike'].values[0], scale=left_sigma)
-    fit['full_density'] = np.where(fit['strike_price'] < loc['strike_price'].values[0], fit['left_extra_density'], fit['full_density'])
+    fit['left_extra_density'] = left_missing_tail * gpd.pdf(fit['reverse_strike'], left_xi, 
+                                                           loc=loc_left['reverse_strike'].values[0], scale=left_sigma)
+    fit.loc[fit['strike_price'] < loc_left['strike_price'].values[0], 'full_density'] = \
+        fit.loc[fit['strike_price'] < loc_left['strike_price'].values[0], 'left_extra_density']
 
+    #--------------------
+    # 後處理
+    #--------------------
+    fit = fit.sort_values('strike_price')
     fit['full_density_cumulative'] = fit['full_density'].cumsum() * delta_x
 
+    # 找出指定累積機率對應的界限
     lower_bound = fit.loc[(fit['full_density_cumulative'] - alpha_1L).abs().idxmin(), 'strike_price']
     upper_bound = fit.loc[(fit['full_density_cumulative'] - alpha_1R).abs().idxmin(), 'strike_price']
 

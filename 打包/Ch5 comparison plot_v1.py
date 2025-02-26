@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 # 繪圖套件
 import matplotlib.pyplot as plt
+from matplotlib.ticker import ScalarFormatter
 # 日期時間處理
 import time
 from datetime import datetime
@@ -246,7 +247,7 @@ if SAVE_PROGRESS and os.path.exists(PROGRESS_FILE):
     os.remove(PROGRESS_FILE)
 
 
-''' 比較兩種方法的 RND 擬合結果（日報酬；已選定日期） '''
+''' 比較兩種方法的 RND 擬合結果（日報酬；已選定日期 2022-07-11, 2023-09-28） '''
 # 參數設定
 initial_i = 1
 delta_x = 0.1
@@ -452,44 +453,59 @@ def UnivariateSpline_function_v3(mix_cp, power=4, s=None, w=None):
 
 # RND
 def RND_function(smooth_IV):
-    # 方法一 直接微分
-    smooth_IV["cdf"] = np.gradient(smooth_IV['C'], smooth_IV['K'])+1
-    smooth_IV["pdf"] = np.gradient(np.gradient(smooth_IV['C'], smooth_IV['K']), smooth_IV['K'])
-
-    # 方法二
+    """
+    計算風險中性機率密度 (Risk-Neutral Density) 及相關分配函數
+    
+    參數:
+        smooth_IV: 包含平滑隱含波動率的資料框
+    
+    回傳:
+        處理後的資料框，包含 RND 密度和累積分配函數
+    """
+    # 計算步長
     dk = smooth_IV["K"].iloc[1] - smooth_IV["K"].iloc[0]
-    smooth_IV["RND"] =  (smooth_IV["C"].shift(1) + smooth_IV["C"].shift(-1) - 2*smooth_IV["C"]) / ((dk)**2)
+    
+    # 計算累積分配函數 (CDF)
+    smooth_IV["left_cumulative"] = np.gradient(smooth_IV['C'], smooth_IV['K']) + 1
+    smooth_IV["right_cumulative"] = 1 - smooth_IV["left_cumulative"]
+    
+    # 計算機率密度函數 (PDF)
+    smooth_IV["pdf"] = np.gradient(np.gradient(smooth_IV['C'], smooth_IV['K']), smooth_IV['K'])
+    
+    # 使用有限差分法計算 RND
+    smooth_IV["RND_density"] = (smooth_IV["C"].shift(1) + smooth_IV["C"].shift(-1) - 2*smooth_IV["C"]) / (dk**2)
+    
+    # 移除計算過程中產生的 NaN 值
     smooth_IV = smooth_IV.dropna()
-
-    # RND 平滑
-    smooth_IV["RND"] = savgol_filter(smooth_IV["RND"], 500, 3)
-
-    smooth_IV['right_cumulative'] = 1 - smooth_IV['cdf']
-
-    # 只保存 mix_cp.index.min() <= K <= mix_cp.index.max() 的數據
-    smooth_IV = smooth_IV[(smooth_IV['K'] >= df_options_mix.index.min()) & (smooth_IV['K'] <= df_options_mix.index.max())]
-
-    # 過濾無效數據
+    
+    # 使用 Savitzky-Golay 濾波器平滑 RND
+    smooth_IV["RND_density"] = savgol_filter(smooth_IV["RND_density"], 500, 3)
+    
+    # 只保留有效範圍內的資料
+    if 'df_options_mix' in globals():
+        smooth_IV = smooth_IV[(smooth_IV['K'] >= df_options_mix.index.min()) & 
+                              (smooth_IV['K'] <= df_options_mix.index.max())]
+    
+    # 過濾無效資料
     smooth_IV = smooth_IV[(smooth_IV['right_cumulative'].notna()) & 
-              (smooth_IV['cdf'].notna()) &
-              (smooth_IV['right_cumulative'] < 1) & 
-              (smooth_IV['right_cumulative'] > 0) &
-              (smooth_IV['cdf'] < 1) &
-              (smooth_IV['cdf'] > 0)]
-
-    # 將欄位 K 名稱改為 strike_price；將 mixIV 改為 fit_imp_vol；將 C 改為 fit_call；將 cdf 改為 left_cumulative；將 RND 改為 RND_density
-    smooth_IV = smooth_IV.rename(columns={'K': 'strike_price', 'mixIV': 'fit_imp_vol', 'C': 'fit_call', 'cdf': 'left_cumulative', 'RND': 'RND_density'})
-
-    fit = smooth_IV
-
-    return fit
+                          (smooth_IV['left_cumulative'].notna()) &
+                          (smooth_IV['right_cumulative'] < 1) & 
+                          (smooth_IV['right_cumulative'] > 0) &
+                          (smooth_IV['left_cumulative'] < 1) &
+                          (smooth_IV['left_cumulative'] > 0) &
+                          (smooth_IV['RND_density'] > 0)]
+    
+    # 重新命名欄位以提高可讀性
+    smooth_IV = smooth_IV.rename(columns={
+        'K': 'strike_price', 
+        'mixIV': 'fit_imp_vol', 
+        'C': 'fit_call'
+    })
+    
+    return smooth_IV
 
 # 定義擬合 GPD 的函數，選 1 個點，比較斜率與 CDF
 def fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alpha_1L=0.05, alpha_1R=0.95):
-    # 取得 F
-    basicinfo = get_FTS()
-    F = basicinfo["F"]
-    
     # 設定接合位置
     left_tail_point = alpha_1L
     right_tail_point = alpha_1R
@@ -536,7 +552,7 @@ def fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alph
     right_fit = minimize(right_func, [0, right_sigma], bounds=[(-1, 1), (0, np.inf)], method='SLSQP')
     right_xi, right_sigma = right_fit.x
 
-    fit = pd.merge(fit, pd.DataFrame({'strike_price': np.arange(fit['strike_price'].max() + delta_x, F*2, delta_x)}), how='outer')
+    fit = pd.merge(fit, pd.DataFrame({'strike_price': np.arange(fit['strike_price'].max() + delta_x, 160010, delta_x)}), how='outer')
     fit['right_extra_density'] = missing_tail * gpd.pdf(fit['strike_price'], right_xi, loc=loc['strike_price'].values[0], scale=right_sigma)
     fit['full_density'] = np.where(fit['strike_price'] > loc['strike_price'].values[0], fit['right_extra_density'], fit['RND_density'])
 
@@ -579,12 +595,9 @@ def fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alph
 
     return fit, lower_bound, upper_bound
 
+
 # 定義擬合 GPD 的函數，選 2 個點，比較 PDF
 def fit_gpd_tails_use_pdf_with_two_points(fit, delta_x, alpha_2L=0.02, alpha_1L=0.05, alpha_1R=0.95, alpha_2R=0.98):
-    # 取得 F
-    basicinfo = get_FTS()
-    F = basicinfo["F"]
-    
     # Right-tail
     loc = fit.iloc[(fit['left_cumulative'] - alpha_1R).abs().argsort()[:1]]
     missing_tail = loc['right_cumulative'].values[0]
@@ -601,7 +614,7 @@ def fit_gpd_tails_use_pdf_with_two_points(fit, delta_x, alpha_2L=0.02, alpha_1L=
     right_fit = minimize(right_func, [0, right_sigma], bounds=[(-1, 1), (0, np.inf)], method='SLSQP')
     right_xi, right_sigma = right_fit.x
 
-    fit = pd.merge(fit, pd.DataFrame({'strike_price': np.arange(fit['strike_price'].max() + delta_x, F*2, delta_x)}), how='outer')
+    fit = pd.merge(fit, pd.DataFrame({'strike_price': np.arange(fit['strike_price'].max() + delta_x, 160010, delta_x)}), how='outer')
     fit['right_extra_density'] = missing_tail * gpd.pdf(fit['strike_price'], right_xi, loc=loc['strike_price'].values[0], scale=right_sigma)
     fit['full_density'] = np.where(fit['strike_price'] > loc['strike_price'].values[0], fit['right_extra_density'], fit['RND_density'])
 
@@ -639,13 +652,23 @@ def plot_compare_methods_side_by_side(fit1, fit2, lower_bound1, upper_bound1, lo
     # 取得 F
     basicinfo = get_FTS()
     F = basicinfo["F"]
-
+    
+    # 繪圖
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 12), dpi=100)
+    
+    # 分別設定兩個子圖的 y 軸格式
+    for ax in [ax1, ax2]:
+        ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+        ax.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
     
     # 左側：方法一（1個點）
     ax1.plot(fit1['strike_price'], fit1['full_density'], 
             label='Empirical RND', 
             color='royalblue')
+    
+    # 找出 CDF 為 5% 和 95% 的點（方法一）
+    left_point1 = fit1.loc[(fit1['left_cumulative'] - 0.05).abs().idxmin()]
+    right_point1 = fit1.loc[(fit1['left_cumulative'] - 0.95).abs().idxmin()]
     
     # 繪製左尾GPD
     left_tail1 = fit1[fit1['strike_price'] <= upper_bound1]
@@ -663,6 +686,22 @@ def plot_compare_methods_side_by_side(fit1, fit2, lower_bound1, upper_bound1, lo
             linestyle=':',
             linewidth=2)
     
+    # 在 5% 和 95% 的點加上黑色空心圓圈（方法一）
+    ax1.plot(left_point1['strike_price'], left_point1['full_density'], 'o', 
+            color='black', fillstyle='none', markersize=10)
+    ax1.plot(right_point1['strike_price'], right_point1['full_density'], 'o', 
+            color='black', fillstyle='none', markersize=10)
+    
+    # 添加文字標註（方法一）
+    ax1.annotate(r'$\alpha_{1L}=0.05$', 
+                xy=(left_point1['strike_price'], left_point1['full_density']),
+                xytext=(-65, 5), textcoords='offset points',
+                fontsize=12)
+    ax1.annotate(r'$\alpha_{1R}=0.95$', 
+                xy=(right_point1['strike_price'], right_point1['full_density']),
+                xytext=(3, 5), textcoords='offset points',
+                fontsize=12)
+    
     ax1.set_xlabel('Strike Price', fontsize=16)
     ax1.set_ylabel('Probability', fontsize=16)
     ax1.set_xlim(F*0.5, F*1.5)
@@ -674,6 +713,12 @@ def plot_compare_methods_side_by_side(fit1, fit2, lower_bound1, upper_bound1, lo
     ax2.plot(fit2['strike_price'], fit2['full_density'],
             label='Empirical RND',
             color='royalblue')
+    
+    # 找出 CDF 為 2%, 5%, 95%, 98% 的點（方法二）
+    left_point2_1 = fit2.loc[(fit2['left_cumulative'] - 0.02).abs().idxmin()]
+    left_point2_2 = fit2.loc[(fit2['left_cumulative'] - 0.05).abs().idxmin()]
+    right_point2_1 = fit2.loc[(fit2['left_cumulative'] - 0.95).abs().idxmin()]
+    right_point2_2 = fit2.loc[(fit2['left_cumulative'] - 0.98).abs().idxmin()]
     
     # 繪製左尾GPD
     left_tail2 = fit2[fit2['strike_price'] <= upper_bound2]
@@ -690,6 +735,25 @@ def plot_compare_methods_side_by_side(fit1, fit2, lower_bound1, upper_bound1, lo
             color='green',
             linestyle=':',
             linewidth=2)
+    
+    # 在四個點加上黑色空心圓圈（方法二）
+    for point in [left_point2_1, left_point2_2, right_point2_1, right_point2_2]:
+        ax2.plot(point['strike_price'], point['full_density'], 'o',
+                color='black', fillstyle='none', markersize=10)
+    
+    # 添加文字標註（方法二）
+    annotations = [
+        (left_point2_1, r'$\alpha_{2L}=0.02$', -65),
+        (left_point2_2, r'$\alpha_{1L}=0.05$', -65),
+        (right_point2_1, r'$\alpha_{1R}=0.95$', 3),
+        (right_point2_2, r'$\alpha_{2R}=0.98$', 3)
+    ]
+    
+    for point, text, x_offset in annotations:
+        ax2.annotate(text,
+                    xy=(point['strike_price'], point['full_density']),
+                    xytext=(x_offset, 5), textcoords='offset points',
+                    fontsize=12)
     
     ax2.set_xlabel('Strike Price', fontsize=16)
     ax2.set_ylabel('Probability', fontsize=16)
