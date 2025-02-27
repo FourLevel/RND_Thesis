@@ -61,12 +61,13 @@ results_df, R2_OS = out_of_sample_analysis(
 print(f"R²_OS: {R2_OS:.4f}")
 
 # 可視化預測結果
-plt.figure(figsize=(12, 6), dpi=100)
+plt.figure(figsize=(12, 6), dpi=150)
 plt.plot(results_df['time'], results_df['actual'], label='Actual')
 plt.plot(results_df['time'], results_df['predicted'], label='Predicted')
 plt.plot(results_df['time'], results_df['historical_mean'], label='Historical Mean')
 plt.legend()
 plt.title('Out-of-Sample Forecasting Results')
+plt.tight_layout()
 plt.show()
 
 
@@ -110,12 +111,13 @@ results_df, R2_OS = out_of_sample_analysis(
 print(f"R²_OS: {R2_OS:.4f}")
 
 # 可視化預測結果
-plt.figure(figsize=(12, 6), dpi=100)
+plt.figure(figsize=(12, 6), dpi=150)
 plt.plot(results_df['time'], results_df['actual'], label='Actual')
 plt.plot(results_df['time'], results_df['predicted'], label='Predicted')
 plt.plot(results_df['time'], results_df['historical_mean'], label='Historical Mean')
 plt.legend()
 plt.title('Out-of-Sample Forecasting Results')
+plt.tight_layout()
 plt.show()
 
 
@@ -158,12 +160,13 @@ results_df, R2_OS = out_of_sample_analysis(
 print(f"R²_OS: {R2_OS:.4f}")
 
 # 可視化預測結果
-plt.figure(figsize=(12, 6), dpi=100)
+plt.figure(figsize=(12, 6), dpi=150)
 plt.plot(results_df['time'], results_df['actual'], label='Actual')
 plt.plot(results_df['time'], results_df['predicted'], label='Predicted')
 plt.plot(results_df['time'], results_df['historical_mean'], label='Historical Mean')
 plt.legend()
 plt.title('Out-of-Sample Forecasting Results')
+plt.tight_layout()
 plt.show()
 
 
@@ -206,28 +209,30 @@ results_df, R2_OS = out_of_sample_analysis(
 print(f"R²_OS: {R2_OS:.4f}")
 
 # 可視化預測結果
-plt.figure(figsize=(12, 6), dpi=100)
+plt.figure(figsize=(12, 6), dpi=150)
 plt.plot(results_df['time'], results_df['actual'], label='Actual')
 plt.plot(results_df['time'], results_df['predicted'], label='Predicted')
 plt.plot(results_df['time'], results_df['historical_mean'], label='Historical Mean')
 plt.legend()
 plt.title('Out-of-Sample Forecasting Results')
+plt.tight_layout()
 plt.show()
 
 
 
 ''' Function '''
+# 樣本外分析
 def out_of_sample_analysis(data, initial_window, target_col, feature_cols):
     """
-    執行 out-of-sample 分析
+    執行樣本外分析
     
     參數：
-    data: DataFrame, 包含目標變量和特徵
-    initial_window: int, 初始訓練窗口大小 (s₀)
-    target_col: str, 目標變量的列名 (R_t+1)
-    feature_cols: list, 特徵變量的列名列表 (X_t)
+    data: DataFrame, 包含目標變數和特徵
+    initial_window: int, 初始訓練窗格大小 (s₀)
+    target_col: str, 目標變數的欄位名稱 (R_t+1)
+    feature_cols: list, 特徵變數的欄位名稱清單 (X_t)
     
-    返回：
+    回傳：
     DataFrame: 包含實際值、預測值和歷史平均值
     float: R²_OS 值
     """
@@ -235,19 +240,19 @@ def out_of_sample_analysis(data, initial_window, target_col, feature_cols):
     # 初始化結果儲存
     results = []
     
-    # 獲取總樣本長度
+    # 取得總樣本長度
     T = len(data)
     initial_window = int(initial_window)
     
     # 對每個預測時點進行迭代
     for t in range(initial_window, T-1):
-        # 獲取訓練數據
+        # 取得訓練資料
         train_data = data.iloc[:t]
         
         # 計算歷史平均值作為基準
         historical_mean = train_data[target_col].mean()
         
-        # 擬合線性回歸模型
+        # 擬合線性迴歸模型
         model = LinearRegression()
         X_train = train_data[feature_cols]
         y_train = train_data[target_col]
@@ -257,7 +262,7 @@ def out_of_sample_analysis(data, initial_window, target_col, feature_cols):
         X_predict = data.iloc[t:t+1][feature_cols]
         predicted_value = model.predict(X_predict)[0]
         
-        # 獲取實際值
+        # 取得實際值
         actual_value = data.iloc[t+1][target_col]
         
         # 儲存結果

@@ -25,8 +25,8 @@ today = datetime.now().strftime('%Y-%m-%d')
 # RND main
 initial_i = 1
 delta_x = 0.1 
-observation_date = "2023-09-27"
-expiration_date = "2023-09-28"
+observation_date = "2023-11-20"
+expiration_date = "2023-12-29"
 call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
 F = find_F2()
 get_FTS()
