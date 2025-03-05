@@ -46,7 +46,7 @@ smooth_IV = UnivariateSpline_function_v3(df_options_mix, power=4)
 fit = RND_function(smooth_IV)
 fit, lower_bound, upper_bound = fit_gpd_tails_use_slope_and_cdf_with_one_point(fit, initial_i, delta_x, alpha_1L=0.05, alpha_1R=0.95)
 # 繪製完整 RND 曲線與完整 CDF 曲線
-plot_gpd_tails(fit, lower_bound, upper_bound, observation_date, expiration_date)
+plot_gpd_tails(fit, lower_bound, upper_bound, observation_date, expiration_date, delta_x=delta_x)
 plot_full_density_cdf(fit, observation_date, expiration_date)
 
 
@@ -589,7 +589,7 @@ def fit_gpd_tails_use_pdf_with_two_points(fit, delta_x, alpha_2L=0.02, alpha_1L=
 
 
 # 定義繪製擬合 GPD 的函數
-def plot_gpd_tails(fit, lower_bound, upper_bound, observation_date, expiration_date):
+def plot_gpd_tails(fit, lower_bound, upper_bound, observation_date, expiration_date, delta_x=0.1):
     # RND
     plt.figure(figsize=(10, 6), dpi=200)
     
@@ -622,6 +622,22 @@ def plot_gpd_tails(fit, lower_bound, upper_bound, observation_date, expiration_d
     plt.plot(right_point['strike_price'], right_point['full_density'], 'o', 
              color='black', fillstyle='none', markersize=10)
     
+    # 添加垂直虛線標示接合點
+    plt.axvline(x=left_point['strike_price'], color='gray', linestyle='--', alpha=0.5)
+    plt.axvline(x=right_point['strike_price'], color='gray', linestyle='--', alpha=0.5)
+    
+    # 在 X 軸上標示接合點的履約價
+    plt.annotate(f'K={int(left_point["strike_price"]):,}', 
+                xy=(left_point['strike_price'], plt.ylim()[0]),
+                xytext=(0, 10), textcoords='offset points',
+                fontsize=10,
+                ha='center', va='top')
+    plt.annotate(f'K={int(right_point["strike_price"]):,}', 
+                xy=(right_point['strike_price'], plt.ylim()[0]),
+                xytext=(0, 10), textcoords='offset points',
+                fontsize=10,
+                ha='center', va='top')
+    
     # 添加文字標註
     plt.annotate(r'$\alpha_{1L}=0.05$', 
                 xy=(left_point['strike_price'], left_point['full_density']),
@@ -632,11 +648,55 @@ def plot_gpd_tails(fit, lower_bound, upper_bound, observation_date, expiration_d
                 xytext=(3, 5), textcoords='offset points',
                 fontsize=12)
     
+    # 繪製接合點的切線
+    def draw_tangent_line(x0, y0, x_data, y_data, direction='right', line_length=3000):
+        # 找到最接近 x0 的點的索引
+        idx = np.abs(x_data - x0).argmin()
+        
+        # 使用中心差分計算切線斜率
+        if direction == 'right':
+            if idx + 1 < len(x_data):
+                slope = (y_data[idx + 1] - y_data[idx]) / (x_data[idx + 1] - x_data[idx])
+        else:  # direction == 'left'
+            if idx - 1 >= 0:
+                slope = (y_data[idx] - y_data[idx - 1]) / (x_data[idx] - x_data[idx - 1])
+        
+        # 計算切線的起點和終點
+        if direction == 'right':
+            x_tangent = np.array([x0 - line_length, x0 + line_length])
+        else:
+            x_tangent = np.array([x0 - line_length, x0 + line_length])
+        
+        y_tangent = y0 + slope * (x_tangent - x0)
+        
+        return x_tangent, y_tangent
+
+    # 繪製左接合點切線
+    x_data = fit['strike_price'].values
+    y_data = fit['full_density'].values
+    x_left_tangent, y_left_tangent = draw_tangent_line(
+        left_point['strike_price'], 
+        left_point['full_density'],
+        x_data, y_data,
+        direction='left'
+    )
+    plt.plot(x_left_tangent, y_left_tangent, 'r--', alpha=0.5, label='Left tangent')
+
+    # 繪製右接合點切線
+    x_right_tangent, y_right_tangent = draw_tangent_line(
+        right_point['strike_price'], 
+        right_point['full_density'],
+        x_data, y_data,
+        direction='right'
+    )
+    plt.plot(x_right_tangent, y_right_tangent, 'r--', alpha=0.5, label='Right tangent')
+
     plt.xlabel('Strike Price')
-    plt.ylabel('Probability')
-    plt.title(f'Empirical Risk-Neutral Probability of BTC options on {observation_date} (expired on {expiration_date})')
-    # plt.xlim(10000, 30000)
+    plt.ylabel('Density')
+    plt.title(f'Empirical Risk-neutral Density of BTC options on {observation_date} (expired on {expiration_date})')
+    plt.xlim(right=F*3)
     plt.legend()
+    plt.tight_layout()
     plt.show()
 
 
@@ -645,47 +705,9 @@ def plot_full_density_cdf(fit, observation_date, expiration_date):
     plt.figure(figsize=(10, 6), dpi=200)
     plt.plot(fit['strike_price'], fit['full_density_cumulative'], label='CDF')
     plt.xlabel('Strike Price')
-    plt.ylabel('Probability')
-    plt.title(f'Empirical Risk-Neutral Probability of BTC options on {observation_date} (expired on {expiration_date})')
-    # plt.xlim(F*0.8, F*1.2)
+    plt.ylabel('Density')
+    plt.title(f'Empirical Risk-neutral Density of BTC options on {observation_date} (expired on {expiration_date})')
+    plt.xlim(right=F*3)
     plt.legend()
-    plt.show()
-
-
-# 定義計算和繪製 RND 統計量的函數
-def calculate_rnd_statistics(fit, delta_x):
-    # 計算統計量
-    RND_mean = np.sum(fit['strike_price'] * fit['full_density'] * delta_x)
-    RND_std = np.sqrt(np.sum((fit['strike_price'] - RND_mean)**2 * fit['full_density'] * delta_x))
-    
-    fit['std_strike'] = (fit['strike_price'] - RND_mean) / RND_std
-    RND_skew = np.sum(fit['std_strike']**3 * fit['full_density'] * delta_x)
-    RND_kurt = np.sum(fit['std_strike']**4 * fit['full_density'] * delta_x) - 3
-
-    # 計算分位數
-    # fit['left_cumulative'] = np.cumsum(fit['full_density'] * delta_x)
-    quantiles = [0.05, 0.25, 0.5, 0.75, 0.95]
-    quants = [fit.loc[(fit['left_cumulative'] - q).abs().idxmin(), 'strike_price'] for q in quantiles]
-
-    # 返回數據
-    return {
-        'mean': RND_mean,
-        'std': RND_std,
-        'skewness': RND_skew,
-        'kurtosis': RND_kurt,
-        'quantiles': dict(zip(quantiles, quants)),
-        'rnd_data': fit[['strike_price', 'full_density']]
-    }
-
-
-# 定義繪製 RND 圖形及分位數的函數
-def plot_rnd_with_quantiles(fit, quants, observation_date, expiration_date):
-    plt.figure(figsize=(10, 6), dpi=200)
-    plt.plot(fit['strike_price'], fit['full_density'], label='Empirical RND')
-    for quant in quants:
-        plt.axvline(x=quant, linestyle='--', color='gray')
-    plt.xlabel('Strike Price')
-    plt.ylabel('RND')
-    plt.title(f'Risk-Neutral Density of BTC options on {observation_date} (expired on {expiration_date})')
-    plt.legend()
+    plt.tight_layout()
     plt.show()
