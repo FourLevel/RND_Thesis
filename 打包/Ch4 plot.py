@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 # 繪圖套件
 import matplotlib.pyplot as plt
+from matplotlib.ticker import ScalarFormatter
 # 數學與統計相關套件
 from scipy.optimize import minimize
 from scipy.stats import norm, genpareto as gpd
@@ -60,7 +61,7 @@ smooth_IV = UnivariateSpline_function_v3(df_options_mix, power=4)
 fit = RND_function(smooth_IV)
 fit, lower_bound, upper_bound = fit_gpd_tails_use_pdf_with_two_points(fit, delta_x, alpha_2L=0.02, alpha_1L=0.05, alpha_1R=0.95, alpha_2R=0.98)
 # 繪製完整 RND 曲線與完整 CDF 曲線
-plot_gpd_tails(fit, lower_bound, upper_bound, observation_date, expiration_date)
+plot_gpd_tails_two_points(fit, lower_bound, upper_bound, observation_date, expiration_date)
 plot_full_density_cdf(fit, observation_date, expiration_date)
 
 
@@ -365,19 +366,24 @@ def plot_fitted_curves(df_options_mix, fit, observation_date, expiration_date):
 
     # 繪製經驗風險中性密度 (PDF)
     plt.figure(figsize=(10, 6), dpi=200)
+    # 設定 y 軸格式為 10^n
+    ax = plt.gca()
+    ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+    plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
     plt.plot(fit['strike_price'], fit['RND_density'], color='orange', label='Empirical RND')
     plt.xlabel('Strike Price')
     plt.ylabel('Density')
-    plt.title(f'Empirical Risk-Neutral Density of BTC options on {observation_date} (expired on {expiration_date})')
+    plt.title(f'Empirical Risk-neutral Density of BTC options on {observation_date} (expired on {expiration_date})')
     plt.legend()
+    plt.tight_layout()
     plt.show()
 
     # 繪製經驗風險中性累積分佈函數 (CDF)
     plt.figure(figsize=(10, 6), dpi=200)
     plt.plot(fit['strike_price'], fit['left_cumulative'], color='orange', label='CDF')
     plt.xlabel('Strike Price')
-    plt.ylabel('Probability')
-    plt.title(f'Empirical Risk-Neutral Probability of BTC options on {observation_date} (expired on {expiration_date})')
+    plt.ylabel('Density')
+    plt.title(f'Empirical Risk-neutral Density of BTC options on {observation_date} (expired on {expiration_date})')
     plt.legend()
     plt.show()
 
@@ -594,7 +600,6 @@ def plot_gpd_tails(fit, lower_bound, upper_bound, observation_date, expiration_d
     plt.figure(figsize=(10, 6), dpi=200)
     
     # 設定 y 軸格式為 10^n
-    from matplotlib.ticker import ScalarFormatter
     ax = plt.gca()
     ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
     plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
@@ -695,6 +700,100 @@ def plot_gpd_tails(fit, lower_bound, upper_bound, observation_date, expiration_d
     plt.ylabel('Density')
     plt.title(f'Empirical Risk-neutral Density of BTC options on {observation_date} (expired on {expiration_date})')
     plt.xlim(right=F*3)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+
+# 定義繪製雙點配適法 GPD 的函數
+def plot_gpd_tails_two_points(fit, lower_bound, upper_bound, observation_date, expiration_date, delta_x=0.1):
+    # RND
+    plt.figure(figsize=(10, 6), dpi=200)
+    
+    # 設定 y 軸格式為 10^n
+    ax = plt.gca()
+    ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+    plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
+
+    # 原始 RND
+    plt.plot(fit['strike_price'], fit['full_density'], label='Empirical RND', color='royalblue')
+    
+    # 找出 CDF 為 2%, 5%, 95%, 98% 的點
+    left_point_2 = fit.loc[(fit['left_cumulative'] - 0.02).abs().idxmin()]
+    left_point_1 = fit.loc[(fit['left_cumulative'] - 0.05).abs().idxmin()]
+    right_point_1 = fit.loc[(fit['left_cumulative'] - 0.95).abs().idxmin()]
+    right_point_2 = fit.loc[(fit['left_cumulative'] - 0.98).abs().idxmin()]
+    
+    # 左尾 GPD
+    left_tail = fit[fit['strike_price'] <= upper_bound]
+    plt.plot(left_tail['strike_price'], left_tail['left_extra_density'], 
+             label='Left tail GPD', color='orange', linestyle=':', linewidth=2)
+    
+    # 右尾 GPD
+    right_tail = fit[fit['strike_price'] >= lower_bound]
+    plt.plot(right_tail['strike_price'], right_tail['right_extra_density'], 
+             label='Right tail GPD', color='green', linestyle=':', linewidth=2)
+    
+    # 在四個接合點加上黑色空心圓圈
+    plt.plot(left_point_2['strike_price'], left_point_2['full_density'], 'o', 
+             color='black', fillstyle='none', markersize=10)
+    plt.plot(left_point_1['strike_price'], left_point_1['full_density'], 'o', 
+             color='black', fillstyle='none', markersize=10)
+    plt.plot(right_point_1['strike_price'], right_point_1['full_density'], 'o', 
+             color='black', fillstyle='none', markersize=10)
+    plt.plot(right_point_2['strike_price'], right_point_2['full_density'], 'o', 
+             color='black', fillstyle='none', markersize=10)
+    
+    # 添加垂直虛線標示接合點
+    plt.axvline(x=left_point_2['strike_price'], color='gray', linestyle='--', alpha=0.5)
+    plt.axvline(x=left_point_1['strike_price'], color='gray', linestyle='--', alpha=0.5)
+    plt.axvline(x=right_point_1['strike_price'], color='gray', linestyle='--', alpha=0.5)
+    plt.axvline(x=right_point_2['strike_price'], color='gray', linestyle='--', alpha=0.5)
+    
+    # 在 X 軸上標示接合點的履約價
+    plt.annotate(f'K={int(left_point_2["strike_price"]):,}', 
+                xy=(left_point_2['strike_price'], plt.ylim()[0]),
+                xytext=(0, 10), textcoords='offset points',
+                fontsize=10,
+                ha='center', va='top')
+    plt.annotate(f'K={int(left_point_1["strike_price"]):,}', 
+                xy=(left_point_1['strike_price'], plt.ylim()[0]),
+                xytext=(0, 25), textcoords='offset points',
+                fontsize=10,
+                ha='center', va='top')
+    plt.annotate(f'K={int(right_point_1["strike_price"]):,}', 
+                xy=(right_point_1['strike_price'], plt.ylim()[0]),
+                xytext=(0, 25), textcoords='offset points',
+                fontsize=10,
+                ha='center', va='top')
+    plt.annotate(f'K={int(right_point_2["strike_price"]):,}', 
+                xy=(right_point_2['strike_price'], plt.ylim()[0]),
+                xytext=(0, 10), textcoords='offset points',
+                fontsize=10,
+                ha='center', va='top')
+    
+    # 添加文字標註
+    plt.annotate(r'$\alpha_{2L}=0.02$', 
+                xy=(left_point_2['strike_price'], left_point_2['full_density']),
+                xytext=(-65, 5), textcoords='offset points',
+                fontsize=12)
+    plt.annotate(r'$\alpha_{1L}=0.05$', 
+                xy=(left_point_1['strike_price'], left_point_1['full_density']),
+                xytext=(-65, 5), textcoords='offset points',
+                fontsize=12)
+    plt.annotate(r'$\alpha_{1R}=0.95$', 
+                xy=(right_point_1['strike_price'], right_point_1['full_density']),
+                xytext=(3, 5), textcoords='offset points',
+                fontsize=12)
+    plt.annotate(r'$\alpha_{2R}=0.98$', 
+                xy=(right_point_2['strike_price'], right_point_2['full_density']),
+                xytext=(3, 5), textcoords='offset points',
+                fontsize=12)
+    
+    plt.xlabel('Strike Price')
+    plt.ylabel('Density')
+    plt.title(f'Empirical Risk-neutral Density of BTC options on {observation_date} (expired on {expiration_date})')
+    plt.xlim(left=0, right=F*3)
     plt.legend()
     plt.tight_layout()
     plt.show()
