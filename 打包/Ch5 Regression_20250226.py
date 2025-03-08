@@ -47,7 +47,7 @@ X_1 = sm.add_constant(X_1)
 # Out-of-sample Analysis
 data = pd.concat([y, X_1], axis=1)
 T = len(data)
-initial_window = T * 0.8
+initial_window = T * 0.6
 
 # 執行分析
 results_df, R2_OS = out_of_sample_analysis(
@@ -97,7 +97,7 @@ X_1 = sm.add_constant(X_1)
 # Out-of-sample Analysis
 data = pd.concat([y, X_1], axis=1)
 T = len(data)
-initial_window = T * 0.8
+initial_window = T * 0.6
 
 # 執行分析
 results_df, R2_OS = out_of_sample_analysis(
