@@ -793,7 +793,7 @@ def plot_gpd_tails_two_points(fit, lower_bound, upper_bound, observation_date, e
     plt.xlabel('Strike Price')
     plt.ylabel('Density')
     plt.title(f'Empirical Risk-neutral Density of BTC options on {observation_date} (expired on {expiration_date})')
-    plt.xlim(left=0, right=F*3)
+    plt.xlim(right=F*3)
     plt.legend()
     plt.tight_layout()
     plt.show()
