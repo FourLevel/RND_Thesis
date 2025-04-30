@@ -475,7 +475,7 @@ print(f"\n已將結果儲存至 {output_filename}")
 
 ''' 執行迴歸分析_每天_一個點方法 '''
 # 讀取資料
-df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_all_data_一個點_2025-02-02.csv')
+df_regression_day_stats_with_returns = pd.read_csv('刪6個極端值\RND_regression_day_stats_all_data_一個點_2025-04-28_刪6個極端值.csv')
 
 # 對所有數值變數進行敘述統計
 numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index','VIX', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
@@ -851,7 +851,7 @@ with open(f'adf_results_day_一個點_{today}.txt', 'w', encoding='utf-8') as f:
 
 # 準備迴歸變數，用這個模型
 X_1 = df_regression_day_stats_with_returns[[
-    'Skewness', 'Median',
+    'Kurtosis', 'Median',
     'T-4 Return'
 ]]
 y = df_regression_day_stats_with_returns['T Return']
@@ -882,7 +882,7 @@ regression_results = pd.DataFrame(columns=[
 ])
 
 # 取得模型結果
-variables = ['const', 'Skewness', 'Median', 'T-4 Return']
+variables = ['const', 'Kurtosis', 'Median', 'T-4 Return']
 coefficients = model.params
 std_errors = model.bse
 t_stats = model.tvalues
@@ -933,11 +933,17 @@ print("*** : p < 0.01")
 print("**  : p < 0.05")
 print("*   : p < 0.1")
 
-# 基於這個模型的四因子迴歸分析（固定 Skewness、Median 和 T-4 Return）
+# 將結果儲存為 CSV
+regression_results.to_csv('regression_results.csv', index=False, encoding='utf-8-sig')
+print(f"\n迴歸結果已儲存至 regression_results.csv")
+model_stats.to_csv('model_stats.csv', index=False, encoding='utf-8-sig')
+print(f"\n模型統計量已儲存至 model_stats.csv")
+
+# 基於這個模型的四因子迴歸分析（固定 Kurtosis、Median 和 T-4 Return）
 # 建立一個 DataFrame 來儲存迴歸結果
 quadvariate_regression_results = pd.DataFrame(columns=[
     'Variable',
-    'Skewness_Coef', 'Skewness_p', 'Skewness_Sig',
+    'Kurtosis_Coef', 'Kurtosis_p', 'Kurtosis_Sig',
     'Median_Coef', 'Median_p', 'Median_Sig',
     'T-4 Return_Coef', 'T-4 Return_p', 'T-4 Return_Sig',
     'Variable_Coef', 'Variable_p', 'Variable_Sig',
@@ -947,11 +953,11 @@ quadvariate_regression_results = pd.DataFrame(columns=[
 # 設定 Y 變數
 y = df_regression_day_stats_with_returns['T Return']
 
-# 對每個 X 變數進行四因子迴歸（與 Skewness, Median, T-4 Return 配對）
+# 對每個 X 變數進行四因子迴歸（與 Kurtosis, Median, T-4 Return 配對）
 for var in variables_to_standardize:
-    if var not in ['T Return', 'Skewness', 'Median', 'T-4 Return']:  # 排除 Y 變數和固定的三個因子
+    if var not in ['T Return', 'Kurtosis', 'Median', 'T-4 Return']:  # 排除 Y 變數和固定的三個因子
         # 準備 X 變數
-        X = df_regression_day_stats_with_returns[['Skewness', 'Median', 'T-4 Return', var]]
+        X = df_regression_day_stats_with_returns[['Kurtosis', 'Median', 'T-4 Return', var]]
         X = sm.add_constant(X)  # 加入常數項
         
         # 執行迴歸
@@ -961,16 +967,16 @@ for var in variables_to_standardize:
         y_pred = model.predict(X)
         mse = np.mean((y - y_pred) ** 2)
         
-        # 判斷 Skewness 的顯著水準
-        p_value_skew = model.pvalues[1]
-        if p_value_skew < 0.01:
-            sig_skew = '***'
-        elif p_value_skew < 0.05:
-            sig_skew = '**'
-        elif p_value_skew < 0.1:
-            sig_skew = '*'
+        # 判斷 Kurtosis 的顯著水準
+        p_value_kurtosis = model.pvalues[1]
+        if p_value_kurtosis < 0.01:
+            sig_kurtosis = '***'
+        elif p_value_kurtosis < 0.05:
+            sig_kurtosis = '**'
+        elif p_value_kurtosis < 0.1:
+            sig_kurtosis = '*'
         else:
-            sig_skew = ''
+            sig_kurtosis = ''
             
         # 判斷 Median 的顯著水準
         p_value_median = model.pvalues[2]
@@ -1008,9 +1014,9 @@ for var in variables_to_standardize:
         # 儲存結果
         quadvariate_regression_results = pd.concat([quadvariate_regression_results, pd.DataFrame({
             'Variable': [var],
-            'Skewness_Coef': [model.params[1]],     # Skewness 係數
-            'Skewness_p': [p_value_skew],           # Skewness p-value
-            'Skewness_Sig': [sig_skew],             # Skewness 顯著性
+            'Kurtosis_Coef': [model.params[1]],     # Kurtosis 係數
+            'Kurtosis_p': [p_value_kurtosis],           # Kurtosis p-value
+            'Kurtosis_Sig': [sig_kurtosis],             # Kurtosis 顯著性
             'Median_Coef': [model.params[2]],     # Median 係數
             'Median_p': [p_value_median],           # Median p-value
             'Median_Sig': [sig_median],             # Median 顯著性
@@ -1025,7 +1031,7 @@ for var in variables_to_standardize:
         })], ignore_index=True)
 
 # 顯示結果
-print("\n四因子迴歸分析結果（固定 Skewness、Median 和 T-4 Return）：")
+print("\n四因子迴歸分析結果（固定 Kurtosis、Median 和 T-4 Return）：")
 print(quadvariate_regression_results.round(4))
 print("\n顯著水準說明：")
 print("*** : p < 0.01")
@@ -1265,7 +1271,7 @@ print(f"\n已將結果儲存至 {output_filename}")
 
 ''' 執行迴歸分析_每天_兩個點方法 '''
 # 讀取資料
-df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_all_data_兩個點_2025-02-02.csv')
+df_regression_day_stats_with_returns = pd.read_csv('刪6個極端值/RND_regression_day_stats_all_data_兩個點_2025-04-28_刪6個極端值.csv')
 
 # 對所有數值變數進行敘述統計
 numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index','VIX', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
@@ -1641,7 +1647,7 @@ with open(f'adf_results_day_兩個點_{today}.txt', 'w', encoding='utf-8') as f:
 
 # 準備迴歸變數，用這個模型
 X_1 = df_regression_day_stats_with_returns[[
-    'Skewness', 'Median',
+    'Kurtosis', 'Median',
     'T-4 Return'
 ]]
 y = df_regression_day_stats_with_returns['T Return']
@@ -1672,7 +1678,7 @@ regression_results = pd.DataFrame(columns=[
 ])
 
 # 取得模型結果
-variables = ['const', 'Skewness', 'Median', 'T-4 Return']
+variables = ['const', 'Kurtosis', 'Median', 'T-4 Return']
 coefficients = model.params
 std_errors = model.bse
 t_stats = model.tvalues
@@ -1724,8 +1730,8 @@ print("**  : p < 0.05")
 print("*   : p < 0.1")
 
 # 儲存結果
-# regression_results.to_csv('regression_model_coefficients.csv', index=False, encoding='utf-8-sig')
-# model_stats.to_csv('regression_model_statistics.csv', index=False, encoding='utf-8-sig')
+regression_results.to_csv('regression_model_coefficients.csv', index=False, encoding='utf-8-sig')
+model_stats.to_csv('regression_model_statistics.csv', index=False, encoding='utf-8-sig')
 
 # 基於這個模型的四因子迴歸分析（固定 Skewness、Median 和 T-4 Return）
 # 建立一個 DataFrame 來儲存迴歸結果
@@ -2433,7 +2439,7 @@ with open(f'adf_results_week_一個點_{today}.txt', 'w', encoding='utf-8') as f
 
 # 準備迴歸變數，用這個模型
 X_4 = df_regression_week_stats_with_returns[[
-     'Kurtosis', 'Median', 'Fear and Greed Index',
+     'Skewness', 'Median', 'Fear and Greed Index',
 ]]
 y = df_regression_week_stats_with_returns['T Return']
 
@@ -2513,6 +2519,11 @@ print("\n顯著水準說明：")
 print("*** : p < 0.01")
 print("**  : p < 0.05")
 print("*   : p < 0.1")
+
+# 儲存結果
+regression_results.to_csv('regression_model_coefficients.csv', index=False, encoding='utf-8-sig')
+model_stats.to_csv('regression_model_statistics.csv', index=False, encoding='utf-8-sig')
+
 
 # 基於這個模型的四因子迴歸分析（固定 Kurtosis、Median 和 Fear and Greed Index）
 # 建立一個 DataFrame 來儲存迴歸結果
@@ -3214,7 +3225,7 @@ with open(f'adf_results_week_兩個點_{today}.txt', 'w', encoding='utf-8') as f
 
 # 準備迴歸變數，用這個模型
 X_4 = df_regression_week_stats_with_returns[[
-     'Kurtosis', 'Median', 'Fear and Greed Index',
+     'Skewness', 'Median', 'Fear and Greed Index',
 ]]
 y = df_regression_week_stats_with_returns['T Return']
 
@@ -3244,7 +3255,7 @@ regression_results = pd.DataFrame(columns=[
 ])
 
 # 取得模型結果
-variables = ['const', 'Kurtosis', 'Median', 'Fear and Greed Index']
+variables = ['const', 'Skewness', 'Median', 'Fear and Greed Index']
 coefficients = model.params
 std_errors = model.bse
 t_stats = model.tvalues
@@ -3294,6 +3305,11 @@ print("\n顯著水準說明：")
 print("*** : p < 0.01")
 print("**  : p < 0.05")
 print("*   : p < 0.1")
+
+# 儲存結果
+regression_results.to_csv('regression_model_coefficients.csv', index=False, encoding='utf-8-sig')
+model_stats.to_csv('regression_model_statistics.csv', index=False, encoding='utf-8-sig')
+
 
 # 基於這個模型的四因子迴歸分析（固定 Kurtosis、Median 和 Fear and Greed Index）
 # 建立一個 DataFrame 來儲存迴歸結果
