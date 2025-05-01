@@ -136,7 +136,7 @@ for var in variables_to_standardize:
 
 # 準備迴歸變數，用這個模型
 X_4 = df_regression_week_stats_with_returns[[
-     'Kurtosis', 'Median', 'Fear and Greed Index',
+     'Skewness', 'Median', 'Fear and Greed Index',
 ]]
 y = df_regression_week_stats_with_returns['T Return']
 
@@ -146,14 +146,14 @@ X_4 = sm.add_constant(X_4)
 # Out-of-sample Analysis
 data = pd.concat([y, X_4], axis=1)
 T = len(data)
-initial_window = int(T * 0.93)
+initial_window = int(T * 0.8)
 
 # 執行分析
 results_df, R2_OS = out_of_sample_analysis(
     data=data,
     initial_window=initial_window,  
     target_col='T Return',
-    feature_cols=['const', 'Kurtosis', 'Median', 'Fear and Greed Index']
+    feature_cols=['const', 'Skewness', 'Median', 'Fear and Greed Index']
 )
 
 # 查看結果
@@ -185,7 +185,7 @@ for var in variables_to_standardize:
 
 # 準備迴歸變數，用這個模型
 X_4 = df_regression_week_stats_with_returns[[
-     'Kurtosis', 'Median', 'Fear and Greed Index',
+     'Skewness', 'Median', 'Fear and Greed Index',
 ]]
 y = df_regression_week_stats_with_returns['T Return']
 
@@ -195,14 +195,14 @@ X_4 = sm.add_constant(X_4)
 # Out-of-sample Analysis
 data = pd.concat([y, X_4], axis=1)
 T = len(data)
-initial_window = int(T * 0.93)
+initial_window = int(T * 0.8)
 
 # 執行分析
 results_df, R2_OS = out_of_sample_analysis(
     data=data,
     initial_window=initial_window,  
     target_col='T Return',
-    feature_cols=['const', 'Kurtosis', 'Median', 'Fear and Greed Index']
+    feature_cols=['const', 'Skewness', 'Median', 'Fear and Greed Index']
 )
 
 # 查看結果
