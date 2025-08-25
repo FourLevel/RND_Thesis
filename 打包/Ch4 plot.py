@@ -26,8 +26,8 @@ today = datetime.now().strftime('%Y-%m-%d')
 # RND main
 initial_i = 1
 delta_x = 0.1 
-observation_date = "2023-11-20"
-expiration_date = "2023-12-29"
+observation_date = "2024-03-15"
+expiration_date = "2024-03-22"
 call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
 F = find_F2()
 get_FTS()
@@ -699,7 +699,7 @@ def plot_gpd_tails(fit, lower_bound, upper_bound, observation_date, expiration_d
     plt.xlabel('Strike Price')
     plt.ylabel('Density')
     plt.title(f'Empirical Risk-neutral Density of BTC options on {observation_date} (expired on {expiration_date})')
-    plt.xlim(right=F*3)
+    plt.xlim(right=150000)
     plt.legend()
     plt.tight_layout()
     plt.show()
@@ -793,7 +793,7 @@ def plot_gpd_tails_two_points(fit, lower_bound, upper_bound, observation_date, e
     plt.xlabel('Strike Price')
     plt.ylabel('Density')
     plt.title(f'Empirical Risk-neutral Density of BTC options on {observation_date} (expired on {expiration_date})')
-    plt.xlim(right=F*3)
+    plt.xlim(right=150000)
     plt.legend()
     plt.tight_layout()
     plt.show()
@@ -806,7 +806,7 @@ def plot_full_density_cdf(fit, observation_date, expiration_date):
     plt.xlabel('Strike Price')
     plt.ylabel('Density')
     plt.title(f'Empirical Risk-neutral Density of BTC options on {observation_date} (expired on {expiration_date})')
-    plt.xlim(right=F*3)
+    plt.xlim(right=150000)
     plt.legend()
     plt.tight_layout()
     plt.show()
