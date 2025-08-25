@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import plotly.graph_objs as go
 import seaborn as sns
 from plotly.subplots import make_subplots
-from matplotlib.ticker import ScalarFormatter
 # 日期時間處理
 from datetime import datetime, timedelta
 import calendar
@@ -25,10 +24,10 @@ import re
 import asyncio
 import nest_asyncio
 import warnings
-# 自定義套件
-from mypackage.bs import *
-from mypackage.marketIV import *
-from mypackage.moment import *
+# # 自定義套件
+# from mypackage.bs import *
+# from mypackage.marketIV import *
+# from mypackage.moment import *
 
 nest_asyncio.apply()
 warnings.filterwarnings("ignore")
@@ -40,8 +39,8 @@ today = datetime.now().strftime('%Y-%m-%d')
 # RND main
 initial_i = 1
 delta_x = 0.1 
-observation_date = "2024-03-15"
-expiration_date = "2024-03-22"
+observation_date = "2023-12-08"
+expiration_date = "2023-12-15"
 call_iv, put_iv, call_price, put_price, df_idx = read_data_v2(expiration_date)
 F = find_F2()
 get_FTS()
@@ -476,7 +475,7 @@ print(f"\n已將結果儲存至 {output_filename}")
 
 ''' 執行迴歸分析_每天_一個點方法 '''
 # 讀取資料
-df_regression_day_stats_with_returns = pd.read_csv('刪6個極端值\RND_regression_day_stats_all_data_一個點_2025-04-28_刪6個極端值.csv')
+df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_all_data_一個點_2025-04-28_刪6個極端值.csv')
 
 # 對所有數值變數進行敘述統計
 numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index','VIX', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
@@ -853,7 +852,7 @@ with open(f'adf_results_day_一個點_{today}.txt', 'w', encoding='utf-8') as f:
 # 準備迴歸變數，用這個模型
 X_1 = df_regression_day_stats_with_returns[[
     'Kurtosis', 'Median',
-    'T-4 Return'
+    'Fear and Greed Index'
 ]]
 y = df_regression_day_stats_with_returns['T Return']
 
@@ -883,7 +882,7 @@ regression_results = pd.DataFrame(columns=[
 ])
 
 # 取得模型結果
-variables = ['const', 'Kurtosis', 'Median', 'T-4 Return']
+variables = ['const', 'Kurtosis', 'Median', 'Fear and Greed Index']
 coefficients = model.params
 std_errors = model.bse
 t_stats = model.tvalues
@@ -1272,7 +1271,7 @@ print(f"\n已將結果儲存至 {output_filename}")
 
 ''' 執行迴歸分析_每天_兩個點方法 '''
 # 讀取資料
-df_regression_day_stats_with_returns = pd.read_csv('刪6個極端值/RND_regression_day_stats_all_data_兩個點_2025-04-28_刪6個極端值.csv')
+df_regression_day_stats_with_returns = pd.read_csv('RND_regression_day_stats_all_data_兩個點_2025-04-28_刪6個極端值.csv')
 
 # 對所有數值變數進行敘述統計
 numeric_columns = ['T Return', 'Mean', 'Std', 'Skewness', 'Kurtosis', 'Median', 'Fear and Greed Index','VIX', 'T-1 Return', 'T-2 Return', 'T-3 Return', 'T-4 Return']
@@ -1649,7 +1648,7 @@ with open(f'adf_results_day_兩個點_{today}.txt', 'w', encoding='utf-8') as f:
 # 準備迴歸變數，用這個模型
 X_1 = df_regression_day_stats_with_returns[[
     'Kurtosis', 'Median',
-    'T-4 Return'
+    'Fear and Greed Index'
 ]]
 y = df_regression_day_stats_with_returns['T Return']
 
@@ -1679,7 +1678,7 @@ regression_results = pd.DataFrame(columns=[
 ])
 
 # 取得模型結果
-variables = ['const', 'Kurtosis', 'Median', 'T-4 Return']
+variables = ['const', 'Kurtosis', 'Median', 'Fear and Greed Index']
 coefficients = model.params
 std_errors = model.bse
 t_stats = model.tvalues
@@ -3790,10 +3789,6 @@ def plot_fitted_curves(df_options_mix, fit, observation_date, expiration_date):
 
     # 繪製經驗風險中性密度 (PDF)
     plt.figure(figsize=(10, 6), dpi=200)
-    # 設定 y 軸格式為 10^n
-    ax = plt.gca()
-    ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
-    plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
     plt.plot(fit['strike_price'], fit['RND_density'], color='orange', label='Empirical RND')
     plt.xlabel('Strike Price')
     plt.ylabel('Density')
